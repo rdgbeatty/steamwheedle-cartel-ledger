@@ -50,12 +50,14 @@ export class BookDay extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
+    this.keys = new Map();
+  }
+  ensureSchema() {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS publications(
       hour INTEGER, house INTEGER, source INTEGER, checked INTEGER, version TEXT, PRIMARY KEY(hour,house));
       CREATE TABLE IF NOT EXISTS blocks(
       shard INTEGER, hour INTEGER, house INTEGER, chart BLOB, depth BLOB, PRIMARY KEY(shard,hour,house));
       CREATE TABLE IF NOT EXISTS keys_created(hour INTEGER PRIMARY KEY)`);
-    this.keys = new Map();
   }
   async getKey(hour, create = false) {
     if (hour <= hourNow() - 2160) return null;
@@ -103,6 +105,7 @@ export class BookDay extends DurableObject {
     }
     // Serialise key creation and publication selection across overlapping retries.
     return this.ctx.blockConcurrencyWhile(async () => {
+      this.ensureSchema();
       const old = this.sql
         .exec('SELECT * FROM publications WHERE hour=? AND house=?', hour, house)
         .toArray()[0];
@@ -134,8 +137,21 @@ export class BookDay extends DurableObject {
     });
   }
   async read(item, variant, from, to, depthHouse) {
+    if (!this.sql.exec("SELECT 1 FROM sqlite_master WHERE name='publications'").toArray().length) return [];
+    const columns = depthHouse ? 'b.chart,b.depth' : 'b.chart';
     const pubs = this.sql
-      .exec('SELECT * FROM publications WHERE hour BETWEEN ? AND ? ORDER BY hour, house', from, to)
+      .exec(
+        'SELECT p.hour,p.house,p.source,' +
+          columns +
+          ' FROM blocks b JOIN publications p USING(hour,house) ' +
+          'WHERE b.shard=? AND b.hour BETWEEN ? AND ? ' +
+          (depthHouse ? 'AND p.house=? ' : '') +
+          'ORDER BY p.hour,p.house',
+        item % SHARDS,
+        from,
+        to,
+        ...(depthHouse ? [depthHouse] : [])
+      )
       .toArray();
     const missing = [...new Set(pubs.map((p) => p.hour))].filter(
       (h) => !this.keys.has(h) && h > hourNow() - 2160
@@ -150,18 +166,9 @@ export class BookDay extends DurableObject {
       if (p.hour <= hourNow() - 2160 || (depthHouse && p.house !== depthHouse)) continue;
       const key = this.keys.get(p.hour);
       if (!key) throw Error('Publication key temporarily unavailable.');
-      const cols = depthHouse ? 'chart,depth' : 'chart';
-      const row = this.sql
-        .exec(
-          'SELECT ' + cols + ' FROM blocks WHERE shard=? AND hour=? AND house=?',
-          item % SHARDS,
-          p.hour,
-          p.house
-        )
-        .one();
       const unpack = async (blob) =>
         JSON.parse(inflateSync(await open(key, blob), { maxOutputLength: 8 * 1024 * 1024 }).toString());
-      const quotes = await unpack(row.chart);
+      const quotes = await unpack(p.chart);
       const index = quotes.findIndex((q) => q[0] === item && q[1] === variant);
       const q = quotes[index];
       const point = {
@@ -171,7 +178,7 @@ export class BookDay extends DurableObject {
         price: q?.[2] ?? null,
         stock: q?.[3] ?? 0
       };
-      if (depthHouse) point.book = index < 0 ? [0, 0, []] : (await unpack(row.depth))[index];
+      if (depthHouse) point.book = index < 0 ? [0, 0, []] : (await unpack(p.depth))[index];
       result.push(point);
     }
     return result;
