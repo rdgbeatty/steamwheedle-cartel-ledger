@@ -1,0 +1,18 @@
+{
+  "name": "forever-market-local",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "scripts": {
+    "start": "node src/start.mjs",
+    "dev": "node src/start.mjs",
+    "inspect:neutral": "node src/inspect-neutral.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check src/start.mjs && node --check src/server.mjs && node --check src/blizzard.mjs && node --check src/catalog.mjs && node --check src/market.mjs && node --check src/store.mjs && node --check src/demo.mjs && node --check src/liquidity.mjs && node --check src/request-budget.mjs && node --check src/collection-gate.mjs && node --check src/neutral-books.mjs && node --check src/inspect-neutral.mjs && node --check public/app.mjs && node --check public/format.mjs && node --check public/collection.mjs && node --check public/category-filter.mjs && node --check shared/items.mjs && node --check shared/market.mjs && node --check shared/resale.mjs && node --check shared/trade.mjs"
+  },
+  "dependencies": {
+    "@openai/codex": "^0.169.1"
+  }
+}

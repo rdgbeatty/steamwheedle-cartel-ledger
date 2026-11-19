@@ -1,0 +1,41 @@
+{
+  "measuredAt": "2026-11-18T19:25:31.052304+00:00",
+  "snapshotAt": "2026-11-18T12:44:02.554Z",
+  "sqliteVersion": "3.45.1",
+  "shards": 64,
+  "days": 90,
+  "observationsPerHour": 64005,
+  "hourlyUncompressedBytes": 1088597,
+  "hourlyCompressedBytes": 380740,
+  "dimensionBytes": 507523,
+  "uncompressed": {
+    "initial90DayDatabaseBytes": 2377179136,
+    "after14DayRollingBytes": 2402975744,
+    "observedPeakDatabaseBytes": 2402975744,
+    "largestObjectBytes": 41279488,
+    "largestRowBytes": 448692,
+    "allocatedFreeBytesAfterRolling": 24948736,
+    "dailySqlRowChangesExcludingIndexes": 1600.0,
+    "chartDailyRowsRead": 90,
+    "chartHourlyValuesReturned": 2160,
+    "localChartLookupMs": 33.079992994316854,
+    "queryPlan": [
+      "SEARCH days USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)"
+    ]
+  },
+  "compressed": {
+    "initial90DayDatabaseBytes": 845987840,
+    "after14DayRollingBytes": 855814144,
+    "observedPeakDatabaseBytes": 855814144,
+    "largestObjectBytes": 14594048,
+    "largestRowBytes": 156492,
+    "allocatedFreeBytesAfterRolling": 8642560,
+    "dailySqlRowChangesExcludingIndexes": 1600.0,
+    "chartDailyRowsRead": 90,
+    "chartHourlyValuesReturned": 2160,
+    "localChartLookupMs": 75.28145601099823,
+    "queryPlan": [
+      "SEARCH days USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)"
+    ]
+  }
+}

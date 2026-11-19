@@ -1,0 +1,56 @@
+:root {
+  font:
+    16px system-ui,
+    sans-serif;
+  color: #252f36;
+  background: #f5f6f3;
+}
+main {
+  max-width: 60rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+h1,
+h2 {
+  margin-bottom: 0.4rem;
+}
+h2 {
+  font-size: 1.25rem;
+}
+form {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+label {
+  display: grid;
+  gap: 0.3rem;
+}
+input,
+select,
+button {
+  font: inherit;
+  padding: 0.45rem;
+}
+canvas {
+  display: block;
+  width: 100%;
+  background: white;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+th,
+td {
+  padding: 0.55rem;
+  text-align: left;
+  border-bottom: 1px solid #d4dadd;
+}
+caption {
+  text-align: left;
+  padding: 0.8rem 0;
+  font-weight: 600;
+}

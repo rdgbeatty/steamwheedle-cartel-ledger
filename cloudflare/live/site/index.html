@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Gathering Ledger · Market history</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/chart.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Market history</h1>
+      <p>Forever · US PvP · Minimum buyout per unit</p>
+      <form>
+        <label>Item ID <input name="item" type="number" min="1" step="1" value="3820" required /></label>
+        <label
+          >Window
+          <select name="days">
+            <option value="1">24 hours</option>
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+          </select></label
+        >
+        <details>
+          <summary>Item variant</summary>
+          <label>Variant key <input name="variant" maxlength="2048" placeholder="Base item" /></label>
+        </details>
+        <button>Load chart</button>
+      </form>
+      <p id="status" role="status"></p>
+      <canvas hidden width="960" height="250" aria-label="Hourly minimum unit asks in copper"></canvas>
+      <table>
+        <caption>
+          Latest publication in this window
+        </caption>
+        <thead>
+          <tr>
+            <th>House</th>
+            <th>Minimum ask</th>
+            <th>Buyout stock</th>
+            <th>Source time (UTC)</th>
+            <th>Last pull (UTC)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <footer>
+        Market data from Blizzard Entertainment. Independent community project.
+        <a href="/privacy.html">Privacy and retention</a>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+.wow-local/
+.env
+.env.*
+!.env.example
+node_modules/
+coverage/
+.dev.vars*
+.wrangler/
+*.log
+*.swp

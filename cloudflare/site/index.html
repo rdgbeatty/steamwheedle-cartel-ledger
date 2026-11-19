@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gathering Ledger · Staging history</title>
+    <link rel="stylesheet" href="/site.css" />
+    <script type="module" src="/chart.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Market history</h1>
+      <p>Synthetic staging data · US PvP</p>
+      <form>
+        <label
+          >Fixture item ID <input id="item" type="number" min="1" max="21334" value="3820" required
+        /></label>
+        <label
+          >Variant
+          <select id="variant">
+            <option value="">Base</option>
+            <option>v1</option>
+            <option>v2</option>
+          </select></label
+        >
+        <label
+          >Window
+          <select id="days">
+            <option value="1">24 hours</option>
+            <option value="7">7 days</option>
+            <option value="90" selected>90 days</option>
+          </select></label
+        >
+        <button>Load history</button>
+      </form>
+      <p role="status" id="status"></p>
+      <section hidden id="results">
+        <h2>Minimum ask · copper per unit</h2>
+        <canvas
+          id="chart"
+          width="960"
+          height="285"
+          aria-label="Hourly minimum asks. Latest observations appear in the table below."
+        ></canvas>
+        <table>
+          <caption>
+            Latest sampled hour
+          </caption>
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Minimum ask (copper)</th>
+              <th>Listed units</th>
+              <th>Coverage</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

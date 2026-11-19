@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Market ledger</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/market-table.css">
+  <script type="module" src="/app.mjs"></script>
+</head>
+<body>
+  <main>
+    <header class="app-header">
+      <div class="app-title"><h1>Market ledger</h1><span class="scope">Forever · US PvP</span></div>
+      <div class="header-actions">
+        <span id="mode" class="badge">AWAITING SETUP</span>
+        <nav class="view-tabs" role="tablist" aria-label="Tool views">
+          <button id="market-tab" role="tab" aria-selected="false" aria-controls="market-view" tabindex="-1">Alliance → Neutral</button>
+          <button id="resale-tab" role="tab" aria-selected="true" aria-controls="resale-view">Neutral → Alliance</button>
+          <button id="browser-tab" role="tab" aria-selected="false" aria-controls="browser-view" tabindex="-1">Data browser</button>
+          <button id="setup-tab" role="tab" aria-selected="false" aria-controls="setup-view" tabindex="-1">Local setup</button>
+        </nav>
+      </div>
+    </header>
+    <div id="error" class="notice error" role="alert" hidden></div>
+
+      <div id="collection-toolbar" class="collection-toolbar">
+        <details id="collection-status" class="collection-status">
+          <summary id="collection-summary"><span id="collection-label">Last collection</span> <strong id="collection-time">No collection yet</strong><span id="collection-stale" class="stale-badge" hidden>Over 4h old</span></summary>
+          <div class="collection-body">
+            <p id="collection-detail" class="fine">No live prices collected</p>
+            <p id="last-api-check" class="fine"></p>
+            <p id="request-budget" class="fine"></p>
+            <div id="house-times" class="house-times"></div>
+            <div class="collection-counts">
+              <span><strong id="item-count">—</strong> items · <span id="catalog-detail">All item categories</span></span>
+              <span><strong id="house-count">—</strong> houses · <span id="house-detail">Alliance · Horde · Neutral</span></span>
+            </div>
+            <p id="progress" class="progress" role="status" aria-live="polite">Connecting to the local collector…</p>
+          </div>
+        </details>
+        <div class="actions collection-actions"><button id="collect" class="primary" disabled>Collect now <span aria-hidden="true">↻</span></button><button id="cancel" hidden>Cancel</button><button id="show-live" hidden>Show latest live</button></div>
+      </div>
+
+    <section id="market-view" role="tabpanel" aria-labelledby="market-tab" hidden>
+      <section id="market-panel" aria-label="Market prices">
+        <div class="filters">
+          <label class="search">Find an item<input id="search" type="search" placeholder="Search by name or item ID…"></label>
+          <details class="category-picker"><summary id="category-summary">Categories · All</summary><fieldset><legend>Include categories</legend><div id="category"></div></fieldset></details>
+          <label>Price basis<select id="price-basis"><option value="minBuyout">Minimum buyout</option><option value="medianBuyout">Weighted median buyout</option></select></label>
+          <label class="checkbox volume-toggle"><input id="filter-low-volume" type="checkbox" checked aria-describedby="market-volume-hint"> Filter low volume <span id="market-volume-hint" class="fine">≥1,000 units</span></label>
+          <details id="trade-filters" class="trade-filters">
+            <summary>Trade filters <span id="trade-filter-summary" class="fine"></span></summary>
+            <div class="trade-filter-body">
+              <label class="checkbox"><input id="alliance-cheaper" type="checkbox" checked> Alliance price below Horde</label>
+              <label>Volume source<select id="volume-mode"><option value="auto">Daily estimates, else stock proxy</option><option value="daily">Daily estimates only</option><option value="stock">Listed-stock proxy only</option></select></label>
+              <label>Minimum units per market<input id="min-volume" type="number" min="0" step="1" value="1000"></label>
+              <label>Apply volume minimum to<select id="volume-markets"><option value="both">Both Alliance and Horde</option><option value="either">Either faction market</option></select></label>
+              <label>Minimum profit / unit (g)<input id="min-unit-profit" type="number" min="0" step="0.0001" value="0"></label>
+              <label>Minimum profit × volume (g)<input id="min-profit-volume" type="number" min="0" step="0.01" value="1"></label>
+              <button id="reset-trade-filters" type="button">Reset defaults</button>
+              <p class="fine">Both fees are included. Profit is an upper bound before the other trader's earnings. Daily estimates use units/day; fallback uses current listed units. Neither measures your neutral sell-through.</p>
+            </div>
+          </details>
+          <span id="row-count" class="fine"></span>
+        </div>
+        <p id="trade-filter-error" class="notice error" hidden></p>
+        <div class="table-scroll">
+          <table class="comparison-table trade-table">
+            <thead><tr>
+              <th><button class="sort" data-sort="name">Item <span>↕</span></button></th>
+              <th class="numeric" aria-sort="descending"><button class="sort" data-sort="profitVolume" title="Fee-adjusted maximum profit per unit × smaller faction volume. An opportunity ceiling, not guaranteed profit or neutral sales/day.">Profit × volume ⓘ <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="unitProfit" title="Horde ask × 0.95 × 0.85 − Alliance cost. The other trader earns zero at this ceiling.">After fees / unit <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="alliance" id="alliance-heading">Alliance <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="allianceVolume" title="Sort by the volume used for filtering and scoring: estimated sales/day or listed-stock fallback">Stock / sales <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="horde" id="horde-heading">Horde <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="hordeVolume" title="Sort by the volume used for filtering and scoring: estimated sales/day or listed-stock fallback">Stock / sales <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="neutral" id="neutral-heading">Neutral <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="neutralUnits" title="Sort by neutral-house units currently offered with a buyout">Stock / offers <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="imbalance" title="Difference between Horde and Alliance unit prices">Horde–Alliance <span>↕</span></button></th>
+              <th class="numeric"><button class="sort" data-sort="neutralImbalance" title="Absolute difference between neutral and Alliance unit prices">Neutral–Alliance <span>↕</span></button></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div id="empty" class="empty"><span class="empty-mark" aria-hidden="true">◇</span><h3>Your first market snapshot starts here.</h3><p>Open Local setup to connect Blizzard, or preview the table with clearly labeled sample prices.</p></div>
+        </div>
+        <nav class="pagination" aria-label="Alliance to neutral results"><button id="market-prev">← Previous</button><span id="market-page" class="fine" aria-live="polite"></span><button id="market-next">Next →</button></nav>
+      </section>
+    </section>
+
+    <section id="resale-view" role="tabpanel" aria-labelledby="resale-tab">
+      <div class="filters">
+        <label class="search">Find an item<input id="resale-search" type="search" placeholder="Search by name or item ID…"></label>
+        <details class="category-picker"><summary id="resale-category-summary">Categories · All</summary><fieldset><legend>Include categories</legend><div id="resale-category"></div></fieldset></details>
+        <label class="checkbox volume-toggle"><input id="resale-filter-low-volume" type="checkbox" aria-describedby="resale-volume-hint"> Filter low volume</label>
+        <label id="resale-volume-control" hidden>Minimum Alliance stock<input id="resale-min-volume" type="number" min="0" step="1" value="1000" aria-describedby="resale-volume-hint"></label>
+        <span class="fine resale-basis">Buy neutral · Sell at Alliance minimum · 5% sale fee</span>
+        <span id="resale-count" class="fine"></span>
+      </div>
+      <p id="resale-volume-hint" class="fine" hidden>Uses Alliance buyout stock as a volume proxy, not completed sales. Neutral stock is not a minimum.</p>
+      <p id="resale-filter-error" class="notice error" hidden></p>
+      <p id="resale-depth-notice" class="notice" hidden></p>
+      <div class="table-scroll">
+        <table class="resale-table">
+          <thead><tr>
+            <th><button class="resale-sort" data-resale-sort="name">Item <span>↕</span></button></th>
+            <th><button class="resale-sort" data-resale-sort="category">Category <span>↕</span></button></th>
+            <th class="numeric"><button class="resale-sort" data-resale-sort="allianceAsk" title="Expected sale price per unit, before the 5% sale fee">Alliance min ask <span>↕</span></button></th>
+            <th class="numeric"><button class="resale-sort" data-resale-sort="allianceUnits" title="All buyout units and offers on Alliance; supply, not actual sales">Alliance stock / offers <span>↕</span></button></th>
+            <th class="numeric"><button class="resale-sort" data-resale-sort="neutralAsk">Neutral min ask <span>↕</span></button></th>
+            <th class="numeric"><button class="resale-sort" data-resale-sort="neutralUnits" title="All neutral buyout units and offers, including unprofitable listings">Neutral stock / offers <span>↕</span></button></th>
+            <th class="numeric" aria-sort="descending"><button class="resale-sort" data-resale-sort="expectedProfit" title="Sum of profit from every profitable neutral listing, after the 5% Alliance sale fee">Expected profit <span>↕</span></button></th>
+          </tr></thead>
+          <tbody id="resale-rows"></tbody>
+        </table>
+        <div id="resale-empty" class="empty"></div>
+      </div>
+      <nav class="pagination" aria-label="Neutral to Alliance results"><button id="resale-prev">← Previous</button><span id="resale-page" class="fine" aria-live="polite"></span><button id="resale-next">Next →</button></nav>
+    </section>
+
+    <section id="browser-view" role="tabpanel" aria-labelledby="browser-tab" hidden>
+      <div class="filters">
+        <label class="search">Find an item<input id="browser-search" type="search" placeholder="Search name, item ID or category…"></label>
+        <details class="category-picker"><summary id="browser-category-summary">Categories · All</summary><fieldset><legend>Include categories</legend><div id="browser-category"></div></fieldset></details>
+        <label>Price basis<select id="browser-basis"><option value="minBuyout">Minimum buyout</option><option value="medianBuyout">Weighted median buyout</option></select></label>
+        <label class="checkbox listed-only"><input id="browser-listed" type="checkbox" checked> Only listed items</label>
+        <span id="browser-count" class="fine"></span>
+      </div>
+      <p id="browser-scope-notice" class="notice" hidden></p>
+      <div class="table-scroll">
+        <table class="browser-table">
+          <thead><tr>
+            <th aria-sort="ascending"><button class="browser-sort" data-browser-sort="name">Item <span>↕</span></button></th>
+            <th><button class="browser-sort" data-browser-sort="category">Category <span>↕</span></button></th>
+            <th class="numeric"><button class="browser-sort" data-browser-sort="alliance">Alliance price <span>↕</span></button></th>
+            <th class="numeric"><button class="browser-sort" data-browser-sort="allianceUnits">Alliance stock / offers <span>↕</span></button></th>
+            <th class="numeric"><button class="browser-sort" data-browser-sort="horde">Horde price <span>↕</span></button></th>
+            <th class="numeric"><button class="browser-sort" data-browser-sort="hordeUnits">Horde stock / offers <span>↕</span></button></th>
+            <th class="numeric"><button class="browser-sort" data-browser-sort="neutral">Neutral price <span>↕</span></button></th>
+            <th class="numeric"><button class="browser-sort" data-browser-sort="neutralUnits">Neutral stock / offers <span>↕</span></button></th>
+          </tr></thead>
+          <tbody id="browser-rows"></tbody>
+        </table>
+        <div id="browser-empty" class="empty"></div>
+      </div>
+      <nav class="pagination" aria-label="Data browser results"><button id="browser-prev">← Previous</button><span id="browser-page" class="fine" aria-live="polite"></span><button id="browser-next">Next →</button></nav>
+    </section>
+
+        <details id="data-notes" class="data-notes">
+          <summary>Metrics &amp; data notes <span id="warning-count" class="fine"></span></summary>
+          <ul id="warnings" class="warnings" hidden></ul>
+          <div id="market-metrics" class="table-note" hidden><p><strong>Profit × volume</strong> = (Horde ask × 0.95 × 0.85 − Alliance cost) × the smaller faction volume. This is a maximum opportunity score: the neutral price is set to the Horde buyer's break-even price, leaving them zero profit. Click ⓘ for both fees and both traders' profits at the actual neutral minimum. Your desired minimum profit is a filter on this net spread; it is never added to profit. Full Alliance stock is not all available at its minimum ask. Neutral liquidity, deposits, relisting and price changes are excluded; this score is not a buy quantity or expected realized profit.</p>
+          <p><strong>Filter low volume</strong> starts enabled, requiring 1,000 units on both faction markets. Change the threshold and both/either matching in Trade filters. Unchecking it removes the volume minimum while retaining the profit filters and score multiplier. Where both daily estimates exist, volume is the smaller of Alliance and Horde estimated units/day. Otherwise, both sides use current buyout stock as a supply proxy. A daily estimate is not completed-sales evidence, and faction volume does not establish neutral demand. Daily-only mode excludes missing coverage; measured zero stays zero. Each score says which basis it uses.</p>
+          <p id="liquidity-status" class="fine"></p><div class="actions"><button id="load-liquidity" type="button">Refresh sales estimates</button></div>
+          <p><a href="https://ahledger.com/developers" target="_blank" rel="noopener noreferrer">Sales estimates from AHledger ↗</a> · <a href="https://ahledger.com/glossary" target="_blank" rel="noopener noreferrer">Scan-based methodology ↗</a>. Estimates may confuse cancellations with sales and may be unavailable. Only Forever US PvP Alliance/Horde are used.</p></div>
+          <p id="resale-metrics" class="table-note"><strong>Expected profit</strong> = Σ (Alliance minimum ask × quantity × 0.95 − neutral purchase cost), for profitable neutral price levels only. Click ⓘ to inspect quantities, costs, the 5% deduction and totals. Profit is shown in gold with 3 significant figures (k = thousand, M = million, B = billion, T = trillion); sorting uses full values. The model assumes every purchased unit sells at the current Alliance minimum. It excludes deposits, relisting costs and price changes. The fee is modeled as exactly 5%, without rounding each sale's fee. Stock measures listed supply, not completed sales.</p>
+          <p id="browser-metrics" class="table-note" hidden>Prices are buyouts per item. Weighted medians use buyout quantities. Stock and offer counts describe listed supply; bid-only offers are counted separately and excluded from buyout prices and stock. Uncheck “Only listed items” to include catalog items with no current listings. Unavailable means a market could not be read; Not listed means it was read successfully with no buyout. Missing item metadata appears as Item #ID / Unknown.</p>
+          <p id="catalog-coverage" class="fine"></p>
+        </details>
+
+    <dialog id="profit-dialog" class="profit-dialog" aria-labelledby="profit-title" aria-describedby="profit-assumption">
+      <div class="section-header"><h2 id="profit-title">Expected profit</h2><button id="profit-close" aria-label="Close profit breakdown">Close ×</button></div>
+      <p id="profit-assumption" class="fine"></p>
+      <div class="table-scroll">
+        <table class="profit-table">
+          <thead><tr><th class="numeric">Neutral unit ask</th><th class="numeric">Units / offers</th><th class="numeric">Buy cost</th><th class="numeric">Alliance gross</th><th class="numeric">−5% sale fee</th><th class="numeric">Profit</th></tr></thead>
+          <tbody id="profit-levels"></tbody>
+          <tfoot id="profit-totals"></tfoot>
+        </table>
+      </div>
+      <p id="profit-detail" class="fine"></p>
+    </dialog>
+
+    <dialog id="trade-dialog" class="profit-dialog" aria-labelledby="trade-title" aria-describedby="trade-assumption">
+      <div class="section-header"><h2 id="trade-title">Trade opportunity</h2><button id="trade-close" aria-label="Close trade math">Close ×</button></div>
+      <p id="trade-assumption" class="fine"></p>
+      <div class="table-scroll"><table class="trade-math-table"><tbody id="trade-math"></tbody></table></div>
+      <p id="trade-detail" class="fine"></p>
+    </dialog>
+
+    <section id="setup-view" role="tabpanel" aria-labelledby="setup-tab" hidden>
+    <details id="setup" class="setup">
+      <summary>Local setup <span class="summary-hint">Credentials & US PvP feeds</span></summary>
+      <div class="setup-body">
+        <section>
+          <h2>Connect Blizzard</h2>
+          <p>Create a client in the <a href="https://develop.battle.net/access/clients" target="_blank" rel="noopener noreferrer">Blizzard developer portal ↗</a>, then enter its ID and secret here. Use an application name such as <strong>Local Gathering Ledger</strong>. If registration requires a redirect URL, use <code id="callback-url"></code>.</p>
+          <p>The collector obtains an OAuth application token. No character login or Battle.net password is needed. Credentials stay in this tool's local state; the secret is never returned to the page.</p>
+          <form id="credentials-form">
+            <label>Client ID<input id="client-id" name="clientId" autocomplete="off" spellcheck="false" required placeholder="From your developer application"></label>
+            <label>Client secret<input id="client-secret" name="clientSecret" type="password" autocomplete="new-password" placeholder="Enter secret; leave blank to keep saved secret"></label>
+            <div class="actions"><button id="save" class="primary" type="submit">Save & collect</button><button id="forget" type="button">Forget saved credentials</button></div>
+          </form>
+          <p id="credential-status" class="fine"></p>
+          <div class="actions"><button id="preview">Preview sample table</button></div>
+        </section>
+        <section>
+          <div class="section-header"><h2>US PvP · locked</h2><button id="discover" disabled>Check feeds</button></div>
+          <p>Collection is fixed to these US PvP houses. Their IDs are corroborated by community market services; discovery checks that Blizzard still advertises each expected faction and ID.</p>
+          <div class="house-selectors">
+            <div class="house-lock"><span>Alliance</span><strong id="house-alliance">110</strong></div>
+            <div class="house-lock"><span>Horde</span><strong id="house-horde">113</strong></div>
+            <div class="house-lock"><span>Neutral / goblin</span><strong id="house-neutral">116</strong></div>
+          </div>
+          <label class="checkbox"><input type="checkbox" id="refresh-catalog"> Refresh the full item catalog on the next collection</label>
+          <p class="fine">The API lists the same houses through multiple ruleset URLs. The fixed house IDs establish the market. <a href="https://hyjal.cc/auctions/us/pvp/alliance/item/8153/wildvine" target="_blank" rel="noopener noreferrer">Market mapping reference ↗</a></p>
+        </section>
+      </div>
+    </details>
+    <details id="neutral-check" class="setup neutral-check">
+      <summary>Verify neutral auction houses <span class="summary-hint">Full Stranglekelp buyout books</span></summary>
+      <div class="neutral-check-body">
+        <div class="actions"><button id="inspect-neutral" class="primary" disabled>Load Stranglekelp in all neutral houses</button><label>Highlight unit ask (copper)<input id="neutral-match" type="number" min="1" step="1" value="280"></label><button id="cancel-inspect" hidden>Cancel</button></div>
+        <p id="neutral-progress" class="fine" role="status" aria-live="polite">Compare in-game listings with every US Forever neutral house, without changing the trading selection.</p>
+        <p class="fine">Ruleset labels are community evidence. Match several prices and stack sizes after the API publishes an update; one matching price alone does not confirm a house. Unit prices and whole-stack buyouts are shown separately. Identical offers are grouped; no asks are truncated. Failed feeds remain marked incomplete.</p>
+        <div id="neutral-books"></div>
+      </div>
+    </details>
+    </section>
+    <footer><span>Data from Blizzard Entertainment · Independent local tool</span><span>Forever only · Latest snapshot · No automatic trading</span></footer>
+  </main>
+</body>
+</html>

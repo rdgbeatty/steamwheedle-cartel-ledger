@@ -1,0 +1,62 @@
+:root {
+  font:
+    16px system-ui,
+    sans-serif;
+  color: #263238;
+  background: #f7f8f5;
+}
+main {
+  max-width: 62rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+form {
+  display: flex;
+  align-items: end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+label {
+  display: grid;
+  gap: 0.3rem;
+}
+input,
+select,
+button {
+  font: inherit;
+  padding: 0.4rem;
+}
+canvas {
+  width: 100%;
+  background: white;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: white;
+}
+th,
+td {
+  text-align: left;
+  border-bottom: 1px solid #d4dadd;
+  padding: 0.55rem;
+}
+caption {
+  text-align: left;
+  padding: 1rem 0;
+  font-weight: 600;
+}
+footer {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+}
+@media (max-width: 40rem) {
+  main {
+    padding: 0.25rem;
+  }
+  th,
+  td {
+    padding: 0.3rem;
+    font-size: 0.83rem;
+  }
+}
