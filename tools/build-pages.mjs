@@ -1,5 +1,6 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { siteAssets } from '../src/site-assets.mjs';
 
 const [directory, ...extra] = process.argv.slice(2);
 if (!directory || extra.length) throw Error('Usage: node tools/build-pages.mjs <artifact-directory>');
@@ -7,21 +8,16 @@ if (!directory || extra.length) throw Error('Usage: node tools/build-pages.mjs <
 const output = resolve(directory);
 const source = new URL('../', import.meta.url);
 const marketOrigin = 'https://gathering-ledger.gathering-ledger.workers.dev';
-const pagesAssets = {
-  public: ['app.mjs', 'category-filter.mjs', 'collection.mjs', 'format.mjs', 'styles.css'],
-  shared: ['items.mjs', 'market.mjs', 'resale.mjs', 'trade.mjs']
-};
-
-for (const [folder, names] of Object.entries(pagesAssets)) {
-  await mkdir(join(output, folder), { recursive: true });
-  for (const name of names) await copyFile(new URL(folder + '/' + name, source), join(output, folder, name));
+for (const [path, file] of siteAssets) {
+  if (path === '/') continue;
+  const destination = join(output, file);
+  await mkdir(dirname(destination), { recursive: true });
+  await copyFile(new URL(file, source), destination);
 }
 
-const html = await readFile(new URL('public/index.html', source), 'utf8');
+const html = await readFile(new URL(siteAssets.get('/'), source), 'utf8');
 const pages = html
   .replace('<html lang="en">', '<html lang="en" data-market-source="' + marketOrigin + '">')
-  .replace('/styles.css', './public/styles.css')
-  .replace('/app.mjs', './public/app.mjs')
   .replace(/^[ \t]*<button id="setup-tab"[^\n]*\n/m, '')
   .replace(/^[ \t]*<!-- local setup -->[\s\S]*?<!-- end local setup -->\r?\n/m, '')
   .replace('AWAITING SETUP', 'CONNECTING')

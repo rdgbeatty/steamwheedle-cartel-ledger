@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { BlizzardClient } from './blizzard.mjs';
@@ -14,22 +14,11 @@ import { RequestBudget, BudgetError } from './request-budget.mjs';
 import { CollectionGate } from './collection-gate.mjs';
 import { ALL_ITEMS_SCOPE } from '../shared/items.mjs';
 import { US_PVP, MAPPING_EVIDENCE, validatePvpHouses, isPvpSnapshot } from '../shared/market.mjs';
+import { siteAssets } from './site-assets.mjs';
 
 export const ROOT = fileURLToPath(new URL('../', import.meta.url));
 export const DEFAULT_STATE = join(ROOT, '.wow-local');
-const assets = new Map([
-  ['/', ['index.html', 'text/html; charset=utf-8']],
-  ['/app.mjs', ['app.mjs', 'text/javascript; charset=utf-8']],
-  ['/format.mjs', ['format.mjs', 'text/javascript; charset=utf-8']],
-  ['/collection.mjs', ['collection.mjs', 'text/javascript; charset=utf-8']],
-  ['/category-filter.mjs', ['category-filter.mjs', 'text/javascript; charset=utf-8']],
-  ['/shared/market.mjs', ['market.mjs', 'text/javascript; charset=utf-8', 'shared']],
-  ['/shared/resale.mjs', ['resale.mjs', 'text/javascript; charset=utf-8', 'shared']],
-  ['/shared/trade.mjs', ['trade.mjs', 'text/javascript; charset=utf-8', 'shared']],
-  ['/shared/items.mjs', ['items.mjs', 'text/javascript; charset=utf-8', 'shared']],
-  ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
-  ['/market-table.css', ['market-table.css', 'text/css; charset=utf-8']],
-]);
+const assetTypes = { '.html': 'text/html', '.mjs': 'text/javascript', '.css': 'text/css' };
 const headers = {
   'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
@@ -153,10 +142,10 @@ export function createLocalServer({ directory = DEFAULT_STATE, clientFactory = n
     if (req.headers.origin && req.headers.origin !== origin) return json(403, { error: 'Use the local tool page.' });
     try {
       const url = new URL(req.url, origin);
-      if (req.method === 'GET' && assets.has(url.pathname)) {
-        const [file, type, folder = 'public'] = assets.get(url.pathname);
-        res.writeHead(200, { ...headers, 'Content-Type': type });
-        return res.end(await readFile(join(ROOT, folder, file)));
+      const asset = siteAssets.get(url.pathname) ?? siteAssets.get('/public' + url.pathname);
+      if (req.method === 'GET' && asset) {
+        res.writeHead(200, { ...headers, 'Content-Type': assetTypes[extname(asset)] + '; charset=utf-8' });
+        return res.end(await readFile(join(ROOT, asset)));
       }
       if (req.method === 'GET' && url.pathname === '/api/status') {
         const credentials = await readCredentials(directory, env);
