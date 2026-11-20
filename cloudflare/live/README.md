@@ -25,7 +25,7 @@ In a restricted WSL session, use the exact absolute path to the workspace config
 
 ## Publishing the Pages frontend
 
-On the first deployment, enable Pages for the public site repository `rdgbeatty/gathering-ledger` from the root of its `main` branch. To publish UI updates, check out that repository separately and run `node tools/build-pages.mjs /path/to/gathering-ledger` from the source repository. Review, commit and push only the generated HTML, JavaScript and CSS. Market snapshots update in Cloudflare independently of this build. Test the Pages URL and the snapshot response with a browser after publication.
+The source repository publishes its own Pages site through GitHub Actions. **Publish market tables to Pages** runs on frontend changes pushed to `main` and can be dispatched manually. It tests the app, builds the static files with `tools/build-pages.mjs` and deploys just that artifact. Market snapshots update in Cloudflare independently of website deployments. [Pages workflow](../../.github/workflows/deploy-pages.yml), [public site](https://rdgbeatty.github.io/steamwheedle-cartel-ledger/)
 
 ## Schedule reliability
 

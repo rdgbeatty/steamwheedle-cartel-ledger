@@ -1,4 +1,4 @@
-# WoW: Forever auction-house trader
+# Steamwheedle Cartel Ledger
 
 The live US PvP history chart covers Alliance 110, Horde 113 and Neutral 116. Select an item name in the local tables to open its chart, including its equipment variant. GitHub Actions schedules collection hourly. Each house has up to one observation per source hour. The chart shows minimum unit buyout and listed buyout quantity, with gaps where observations are missing. The archive retains anonymous price levels for up to 90 days. [Live viewer](https://gathering-ledger.gathering-ledger.workers.dev/), [collector operations](cloudflare/live/README.md)
 
@@ -126,7 +126,7 @@ The localhost app keeps the latest live snapshot. It expires the snapshot on rea
 
 ## Hosted market app
 
-The public site loads the current US PvP snapshot from Cloudflare. It offers both trading tables and the data browser, with listed stock as the activity proxy. GitHub Actions publishes the latest complete snapshot and the hourly history independently of website deployments. Wrangler's local emulator supports synthetic tests. [Pages app](https://rdgbeatty.github.io/gathering-ledger/), [public app decision](docs/hosted-market-app.md), [live runbook](cloudflare/live/README.md), [local fixture](cloudflare/README.md)
+The public site loads the current US PvP snapshot from Cloudflare. It offers both trading tables and the data browser, with listed stock as the activity proxy. GitHub Actions publishes the frontend from this repository and collects the latest complete snapshot and hourly history on a separate workflow. Wrangler's local emulator supports synthetic tests. [Pages app](https://rdgbeatty.github.io/steamwheedle-cartel-ledger/), [public app decision](docs/hosted-market-app.md), [live runbook](cloudflare/live/README.md), [local fixture](cloudflare/README.md)
 
 ## To do
 
