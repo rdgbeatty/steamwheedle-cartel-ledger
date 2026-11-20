@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { Buffer } from 'node:buffer';
+import { HISTORY_BATCH_HOURS } from '../../shared/market.mjs';
 import { MarketCollector, MAX_SNAPSHOT } from './collector.mjs';
 import { bookParts, MAX_BOOK, SHARDS, unpackBlock } from './stream-book.mjs';
 
@@ -12,6 +13,9 @@ const SNAPSHOT_KEY = 'latest';
 const PAGES_ORIGIN = 'https://rdgbeatty.github.io';
 const json = (body, status = 200) =>
   Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
+const historyJson = (body, status = 200) => Response.json(body, { status, headers: {
+  'access-control-allow-origin': PAGES_ORIGIN, 'cache-control': 'no-store'
+} });
 const hourNow = () => Math.floor(Date.now() / HOUR);
 const hourKey = (hour) => 'book-key-' + hour;
 const bytes = (input) => new Uint8Array(input);
@@ -327,6 +331,7 @@ export default {
     if (request.method === 'GET' && url.pathname === '/api/status')
       return json({ dataset: 'forever-us-pvp', houses: await control.status() });
     if (request.method === 'GET' && ['/api/history', '/api/book'].includes(url.pathname)) {
+      const respond = url.pathname === '/api/history' ? historyJson : json;
       const item = Number(p.get('item')),
         variant = p.get('variant') ?? '';
       const from = Number(p.get('from')),
@@ -341,14 +346,18 @@ export default {
         from <= hourNow() - 2160 ||
         to > hourNow() ||
         from > to ||
-        to - from >= 168 ||
+        to - from >= HISTORY_BATCH_HOURS ||
         (house !== null && (!HOUSES.includes(house) || from !== to))
       )
-        return json({ error: 'Invalid item or hour range' }, 400);
+        return respond({ error: 'Invalid item or hour range' }, 400);
       const reads = [];
       for (let day = Math.floor(from / 24); day <= Math.floor(to / 24); day++)
         reads.push(dayStub(env, day * 24).read(item, variant, from, to, house));
-      return json({ dataset: 'forever-us-pvp', item, variant, points: (await Promise.all(reads)).flat() });
+      try {
+        return respond({ dataset: 'forever-us-pvp', item, variant, points: (await Promise.all(reads)).flat() });
+      } catch {
+        return respond({ error: 'Market history is temporarily unavailable' }, 502);
+      }
     }
     if (request.method !== 'POST' || !url.pathname.startsWith('/api/collector/'))
       return json({ error: 'Unknown route' }, 404);

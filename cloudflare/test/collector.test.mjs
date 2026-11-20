@@ -135,6 +135,12 @@ test('Workers replay streams books, commits history and preserves the last good 
   const hour = Math.floor(source / HOUR);
   const chart = await fetch('/api/history?item=2&from=' + hour + '&to=' + hour);
   assert.equal(chart.status, 200);
+  const pagesOrigin = 'https://rdgbeatty.github.io';
+  assert.equal(chart.headers.get('access-control-allow-origin'), pagesOrigin);
+  const invalidChart = await fetch('/api/history?item=0');
+  assert.equal(invalidChart.status, 400);
+  assert.equal(invalidChart.headers.get('access-control-allow-origin'), pagesOrigin);
+  await invalidChart.json();
   assert.equal((await chart.json()).points.length, 3);
   const order = await (await fetch('/api/book?house=116&item=2&from=' + hour + '&to=' + hour)).json();
   assert.deepEqual(order.points[0].book, [2, 0, [[117.5, 2, 1, 235]]]);

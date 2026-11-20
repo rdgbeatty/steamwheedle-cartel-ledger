@@ -13,7 +13,7 @@ import { inspectNeutralBooks } from './neutral-books.mjs';
 import { RequestBudget, BudgetError } from './request-budget.mjs';
 import { CollectionGate } from './collection-gate.mjs';
 import { ALL_ITEMS_SCOPE } from '../shared/items.mjs';
-import { US_PVP, MAPPING_EVIDENCE, validatePvpHouses, isPvpSnapshot } from '../shared/market.mjs';
+import { HISTORY_BATCH_HOURS, MARKET_ORIGIN, US_PVP, MAPPING_EVIDENCE, validatePvpHouses, isPvpSnapshot } from '../shared/market.mjs';
 import { siteAssets } from './site-assets.mjs';
 
 export const ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -52,7 +52,7 @@ function validateSelection(input, discovery) {
   catch (error) { throw new HttpError(error.message); }
 }
 
-export function createLocalServer({ directory = DEFAULT_STATE, clientFactory = null, liquidityClient = new LiquidityClient(), env = process.env, now = () => Date.now() } = {}) {
+export function createLocalServer({ directory = DEFAULT_STATE, clientFactory = null, liquidityClient = new LiquidityClient(), historyFetch = fetch, env = process.env, now = () => Date.now() } = {}) {
   const csrf = randomBytes(32).toString('hex');
   let client, credentialKey, mutationBusy = false;
   let job = { state: 'idle', message: 'Ready for local setup.' };
@@ -156,6 +156,31 @@ export function createLocalServer({ directory = DEFAULT_STATE, clientFactory = n
           clientId: credentials.clientId, fromEnvironment: credentials.fromEnvironment, settings: current, market: US_PVP });
       }
       if (req.method === 'GET' && url.pathname === '/api/snapshot') return json(200, await readSnapshot());
+      if (req.method === 'GET' && url.pathname === '/api/history') {
+        const item = Number(url.searchParams.get('item'));
+        const variant = url.searchParams.get('variant') ?? '';
+        const from = Number(url.searchParams.get('from'));
+        const to = Number(url.searchParams.get('to'));
+        const hour = Math.floor(now() / 3_600_000);
+        if (!Number.isSafeInteger(item) || item < 1 || variant.length > 2048 ||
+            !Number.isSafeInteger(from) || !Number.isSafeInteger(to) ||
+            from <= hour - 90 * 24 || to > hour || from > to || to - from >= HISTORY_BATCH_HOURS)
+          return json(400, { error: 'Invalid item or hour range.' });
+        const target = new URL('/api/history', MARKET_ORIGIN);
+        target.search = new URLSearchParams({ item, variant, from, to });
+        const timer = AbortSignal.timeout(20_000);
+        try {
+          const upstream = await historyFetch(target, { redirect: 'error', signal: timer });
+          if (!upstream.ok) {
+            await upstream.body?.cancel();
+            return json(upstream.status === 400 ? 400 : 502, { error: 'The hosted history request was unavailable.' });
+          }
+          return json(200, await upstream.json());
+        } catch {
+          return json(502, { error: 'Could not reach hosted market history.' });
+        }
+      }
+
       if (req.method === 'GET' && url.pathname === '/api/neutral-books') {
         if (neutralReport?.expiresAt <= Date.now()) neutralReport = null;
         return json(200, { report: neutralReport });

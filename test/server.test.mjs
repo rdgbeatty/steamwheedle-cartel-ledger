@@ -306,3 +306,28 @@ test('an exhausted shared budget prevents upstream work even when collection coo
   assert.equal(state.collection.requestBudget.remaining, 0);
   assert.equal(state.collection.nextEligibleAt, app.now() + 3_600_000);
 });
+
+test('localhost proxies bounded item history to the fixed public Worker', async (t) => {
+  const calls = [];
+  const app = await local(t, { historyFetch: async (url, options) => {
+    calls.push({ url, options });
+    return Response.json({ points: [] });
+  } });
+  const hour = Math.floor(app.now() / 3_600_000);
+  const params = new URLSearchParams({ item: '3820', variant: '[]', from: String(hour - 23), to: String(hour), origin: 'https://other.invalid' });
+  const endpoint = app.origin + '/api/history?';
+  const result = await app.fetch(endpoint + params);
+  assert.equal(result.status, 200);
+  assert.deepEqual(await result.json(), { points: [] });
+  assert.equal(calls[0].url.origin, 'https://gathering-ledger.gathering-ledger.workers.dev');
+  assert.equal(calls[0].url.pathname, '/api/history');
+  assert.deepEqual([...calls[0].url.searchParams.keys()], ['item', 'variant', 'from', 'to']);
+  assert.equal(calls[0].options.redirect, 'error');
+  assert.equal(calls[0].options.headers, undefined);
+
+  params.set('from', String(hour - 168));
+  assert.equal((await app.fetch(endpoint + params)).status, 400);
+  params.set('from', String(hour - 23));
+  assert.equal((await app.fetch(endpoint + params, { headers: { Origin: 'https://other.invalid' } })).status, 403);
+  assert.equal(calls.length, 1);
+});

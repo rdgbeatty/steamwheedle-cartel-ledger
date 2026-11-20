@@ -1,5 +1,8 @@
+export const MARKET_ORIGIN = 'https://gathering-ledger.gathering-ledger.workers.dev';
+export const HISTORY_BATCH_HOURS = 7 * 24;
+
 // Community-correlated mapping; the ruleset segment alone does not filter auction books.
-// Evidence and unresolved empty-house slots: docs/us-pvp-markets.md.
+// Evidence and unresolved empty-house slots: docs/02-us-pvp-markets.md.
 export const US_PVP = Object.freeze({
   game: 'forever', region: 'us', ruleset: 1, label: 'US PvP', locked: true,
   houses: Object.freeze({ alliance: 110, horde: 113, neutral: 116 }),

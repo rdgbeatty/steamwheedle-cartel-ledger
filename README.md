@@ -33,6 +33,8 @@ All three tables have independent **category checkboxes**, with **All** and **No
 
 Each table renders **100 rows per page**. Filters and sorting apply to the complete dataset before pagination, and changing them returns to page one. Browsing, searching, checking categories and changing pages use the saved snapshot and make no Blizzard requests. [Local interface decision](docs/06-local-market-interface.md)
 
+Click an item name in any market table to see its price history. Solid lines join adjacent observations, and dashed lines interpolate across missing prices. Scrub the timeline to inspect the recorded price, buyout stock and market coverage for an hour. [Price history decision](docs/09-price-history-modal.md)
+
 ## Neutral → Alliance
 
 This page lists only neutral buyout opportunities with positive expected profit when every purchased unit sells at the **current Alliance minimum unit ask**, less a **5% Alliance sale fee**. Its target always uses the minimum, independently of the comparison page's minimum/median setting.

@@ -6,6 +6,7 @@
   <title>Market ledger</title>
   <link rel="stylesheet" href="./public/styles.css">
   <link rel="stylesheet" href="./public/market-table.css">
+  <link rel="stylesheet" href="./public/market-history.css">
   <script type="module" src="./public/app.mjs"></script>
 </head>
 <body>
@@ -176,6 +177,40 @@
       <p id="trade-assumption" class="fine"></p>
       <div class="table-scroll"><table class="trade-math-table"><tbody id="trade-math"></tbody></table></div>
       <p id="trade-detail" class="fine"></p>
+    </dialog>
+
+    <dialog id="history-dialog" class="profit-dialog history-dialog" aria-labelledby="history-title">
+      <div class="section-header">
+        <div><h2 id="history-title">Price history</h2><p class="fine" id="history-item"></p></div>
+        <button type="button" id="history-close" autofocus>Close ×</button>
+      </div>
+      <div class="history-controls">
+        <label for="history-range">Range
+          <select id="history-range"><option value="1">24 hours</option><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select>
+        </label>
+        <p id="history-legend" class="fine"><span class="history-dash" aria-hidden="true"></span> Dashed lines interpolate between observed prices.</p>
+      </div>
+      <p id="history-status" class="fine" role="status"></p>
+      <div class="history-plot">
+        <canvas id="history-chart" role="img" aria-label="Hourly minimum buyout by auction house" aria-describedby="history-legend" hidden></canvas>
+      </div>
+      <div id="history-inspector" hidden>
+        <div class="history-hour">
+          <label for="history-hour">Inspect hour</label>
+          <input type="range" id="history-hour" step="1">
+          <time id="history-time"></time>
+        </div>
+        <div class="table-scroll history-values">
+          <table>
+            <thead><tr><th scope="col">Market</th><th scope="col">Minimum ask</th><th scope="col">Buyout stock</th><th scope="col">Hours observed</th></tr></thead>
+            <tbody id="history-values"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="history-actions">
+        <button type="button" id="history-retry" hidden>Retry unavailable hours</button>
+        <a id="history-standalone" target="_blank" rel="noopener noreferrer">Open full page ↗</a>
+      </div>
     </dialog>
 
     <!-- local setup -->

@@ -21,5 +21,7 @@ test('Pages loads the same browser entry files as localhost', async (t) => {
   for (const file of files) {
     assert.deepEqual(await readFile(join(artifact, file)), await readFile(new URL(file, source)));
   }
+  assert.deepEqual(await readFile(join(artifact, 'public/market-history.mjs')),
+    await readFile(new URL('public/market-history.mjs', source)));
   assert.doesNotMatch(hosted, /id="credentials-form"/);
 });

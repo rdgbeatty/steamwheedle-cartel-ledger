@@ -6,6 +6,8 @@ const files = [
   'public/category-filter.mjs',
   'public/styles.css',
   'public/market-table.css',
+  'public/market-history.css',
+  'public/market-history.mjs',
   'shared/market.mjs',
   'shared/resale.mjs',
   'shared/trade.mjs',

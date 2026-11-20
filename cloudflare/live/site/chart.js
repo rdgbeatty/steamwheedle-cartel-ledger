@@ -40,23 +40,24 @@ function draw(points, from, to) {
   ctx.fillText(utc(to * HOUR), end, h - 9);
   ctx.textAlign = 'left';
   for (const [house, , color] of houses) {
-    let prior = null;
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    for (const point of points.filter((p) => p.house === house)) {
-      if (point.price === null) {
-        prior = null;
-        continue;
+    const priced = points.filter((point) => point.house === house && point.price !== null);
+    const x = (hour) => left + ((hour - from) * (end - left)) / Math.max(1, to - from);
+    const y = (price) => bottom - (price * (bottom - 15)) / max;
+    ctx.strokeStyle = ctx.fillStyle = color;
+    for (const interpolate of [true, false]) {
+      ctx.setLineDash(interpolate ? [6, 5] : []);
+      ctx.globalAlpha = interpolate ? 0.65 : 1;
+      ctx.beginPath();
+      for (let i = 1; i < priced.length; i++) {
+        const before = priced[i - 1], after = priced[i];
+        if ((after.hour > before.hour + 1) !== interpolate) continue;
+        ctx.moveTo(x(before.hour), y(before.price));
+        ctx.lineTo(x(after.hour), y(after.price));
       }
-      const x = left + ((point.hour - from) * (end - left)) / Math.max(1, to - from),
-        y = bottom - (point.price * (bottom - 15)) / max;
-      if (prior === point.hour - 1) ctx.lineTo(x, y);
-      else ctx.moveTo(x, y);
-      ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
-      prior = point.hour;
+      ctx.stroke();
     }
-    ctx.stroke();
+    for (const { hour, price } of priced)
+      ctx.fillRect(x(hour) - 1.5, y(price) - 1.5, 3, 3);
   }
 }
 async function load(event) {
@@ -114,5 +115,6 @@ async function load(event) {
 const initial = new URLSearchParams(location.search);
 if (/^[1-9]\d{0,9}$/.test(initial.get('item'))) form.elements.item.value = initial.get('item');
 form.elements.variant.value = (initial.get('variant') || '').slice(0, 2048);
+if (['1', '7', '30', '90'].includes(initial.get('days'))) form.elements.days.value = initial.get('days');
 form.addEventListener('submit', load);
 load();

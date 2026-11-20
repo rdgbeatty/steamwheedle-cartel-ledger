@@ -1,0 +1,30 @@
+.history-dialog { width: min(930px, calc(100vw - 24px)); padding: clamp(13px, 3vw, 24px); }
+.history-dialog .section-header { align-items: start; }
+.history-dialog h2 { font-size: clamp(19px, 3vw, 26px); overflow-wrap: anywhere; }
+.history-dialog .section-header button { flex: none; }
+#history-item { margin: 3px 0 0; }
+.history-controls, .history-actions, .history-hour { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.history-controls { margin-top: 12px; justify-content: space-between; }
+.history-controls label { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+#history-range { width: auto; min-width: 96px; }
+#history-legend, #history-status { margin: 4px 0; }
+.history-dash { display: inline-block; width: 20px; border-top: 2px dashed var(--muted); margin-right: 4px; vertical-align: middle; }
+#history-chart { display: block; width: 100%; height: clamp(205px, 37vh, 315px); background: #111719; border-radius: 5px; cursor: crosshair; }
+.history-hour { margin-top: 9px; }
+#history-hour { width: auto; flex: 1; min-width: 92px; padding: 0; accent-color: var(--gold); }
+#history-time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.history-dialog .history-values { margin-top: 9px; }
+.history-values table { min-width: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.history-values :is(th, td) { padding: 8px 10px; white-space: normal; }
+.history-values :is(th, td):first-child { min-width: 0; padding-left: 11px; }
+.history-values tbody th { white-space: nowrap; }
+.history-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.history-swatch.alliance { background: #7ab8f5; }
+.history-swatch.horde { background: #f39c91; }
+.history-swatch.neutral { background: #b9d483; }
+.history-actions { justify-content: flex-end; margin-top: 10px; font-size: 11px; }
+@media (max-width: 510px) {
+  #history-chart { height: clamp(175px, 33vh, 230px); }
+  .history-values :is(th, td) { padding: 7px 6px; font-size: 10px; }
+  #history-time { flex-basis: 100%; }
+}

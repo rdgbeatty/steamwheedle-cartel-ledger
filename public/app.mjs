@@ -1,13 +1,15 @@
 import { splitCopper, compactNumber } from './format.mjs';
-import { US_PVP, comparison, listingCount, sortRows } from '../shared/market.mjs';
+import { MARKET_ORIGIN, US_PVP, comparison, listingCount, sortRows } from '../shared/market.mjs';
 import { ALL_ITEMS_SCOPE, matchesItemQuery, pageRows } from '../shared/items.mjs';
 import { CategoryFilter } from './category-filter.mjs';
 import { collectionFreshness, collectionCooldown } from './collection.mjs';
+import { historyDialog } from './market-history.mjs';
 import { neutralResale, sortResaleRows } from '../shared/resale.mjs';
 import { TRADE_DEFAULTS, allianceTrade, dailyEstimate, tradeMatches, sortTradeRows } from '../shared/trade.mjs';
 
 const $ = (id) => document.getElementById(id);
 const hostedOrigin = document.documentElement?.dataset?.marketSource;
+const openHistory = historyDialog(hostedOrigin ?? '');
 const factions = ['alliance', 'horde', 'neutral'];
 const titles = { alliance: 'Alliance', horde: 'Horde', neutral: 'Neutral' };
 const count = new Intl.NumberFormat('en-US');
@@ -143,9 +145,14 @@ function price(row, faction) { return row.quotes[faction]?.[$('price-basis').val
 function itemCell(row) {
   const cell = node('td');
   const name = node('a', row.name, 'item-name');
-  name.href = 'https://gathering-ledger.gathering-ledger.workers.dev/?' + new URLSearchParams({ item: row.id, variant: row.variant || '' });
-  name.target = '_blank';
-  name.rel = 'noopener noreferrer';
+  name.href = MARKET_ORIGIN + '/?' + new URLSearchParams({ item: row.id, variant: row.variant || '' });
+  name.dataset.historyKey = row.key;
+  name.setAttribute('aria-haspopup', 'dialog');
+  name.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button > 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    return openHistory(row, name);
+  });
   cell.append(name, node('span', `#${row.id}${row.variant ? ' · variant' : ''}`, 'item-id'));
   const unnamed = /^Item #\d+$/.test(row.name);
   const details = [];

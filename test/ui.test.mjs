@@ -29,7 +29,7 @@ class Element {
 }
 
 let uiRun = 0;
-async function withUI({ configured = false, initialSnapshot = null, initialLiquidity = null, initialNeutralReport = null, collection = null, hostedOrigin } = {}, run) {
+async function withUI({ configured = false, initialSnapshot = null, initialLiquidity = null, initialNeutralReport = null, collection = null, hostedOrigin, historyFixture } = {}, run) {
   const original = Object.fromEntries(['document', 'fetch', 'location', 'setInterval', 'setTimeout', 'clearTimeout'].map((key) => [key, globalThis[key]]));
   const originalNow = Date.now;
   let clock = originalNow(), liveSnapshot = initialSnapshot;
@@ -60,6 +60,7 @@ async function withUI({ configured = false, initialSnapshot = null, initialLiqui
   globalThis.clearTimeout = (timer) => { if (timer) timer.cancelled = true; };
   globalThis.fetch = async (path, options) => {
     calls.push({ path, options });
+    if (historyFixture && new URL(path, location.origin).pathname === '/api/history') return historyFixture(path, options);
     const body = path === '/api/status' ? { csrf: 'local-test', job: { state: 'idle', message: 'Ready' }, configured, collection, clientId: '', settings: { selected: {}, discovery: configured ? {} : null } }
       : path === '/api/demo' ? { snapshot: demoSnapshot() } : path === '/api/snapshot' || (hostedOrigin && path === hostedOrigin + '/api/snapshot') ? { snapshot: liveSnapshot } : path === '/api/liquidity' ? { liquidity: initialLiquidity } : path === '/api/neutral-books' ? { report: initialNeutralReport } : { ok: true };
     return { ok: true, json: async () => body };
@@ -528,5 +529,58 @@ test('unnamed item explanation preserves prices, IDs and equipment variant detai
     assert.match(item.children[0].title, /Auction prices are available/);
     assert.match(item.children[0].title, /Variant: \[0,\[12727\],\[\]\]/);
     assert.match(item.children[6].textContent, /2\.78 g/);
+  });
+});
+
+test('opening a hosted item requests its variant on demand and preserves available ranges through a retry', async () => {
+  const hostedOrigin = 'https://test.example';
+  const initialSnapshot = { ...demoSnapshot(), mode: 'live', publicVersion: 1, retainedAt: new Date().toISOString() };
+  const row = initialSnapshot.rows[0];
+  row.variant = '[2,[10],[]]';
+  row.key = row.id + ':' + row.variant;
+  let attempts = 0;
+  async function historyFixture(path) {
+    const to = Number(new URL(path).searchParams.get('to'));
+    attempts++;
+    return {
+      ok: attempts !== 3,
+      json: async () => ({ points: [
+        { house: 110, hour: to - 2, price: null, stock: 0 },
+        { house: 110, hour: to, price: 240, stock: 40 }
+      ] })
+    };
+  }
+  await withUI({ hostedOrigin, initialSnapshot, historyFixture }, async ({ elements, calls }) => {
+    await elements['browser-tab'].trigger();
+    const cell = elements['browser-rows'].children.find((tr) => tr.textContent.includes(row.name)).children[0];
+    const link = cell.children[0];
+    assert.equal(attempts, 0);
+    assert.equal((await link.trigger('click')).defaultPrevented, true);
+    assert.equal(elements['history-dialog'].open, true);
+    assert.equal(attempts, 1);
+    const query = new URL(calls.at(-1).path).searchParams;
+    assert.equal(query.get('item'), String(row.id));
+    assert.equal(query.get('variant'), row.variant);
+    assert.equal(Number(query.get('to')) - Number(query.get('from')), 23);
+    assert.match(elements['history-values'].children[0].textContent, /2s 40c.*40/);
+    assert.match(elements['history-values'].children[1].textContent, /No observation/);
+    elements['history-hour'].value = String(Number(query.get('to')) - 2);
+    await elements['history-hour'].trigger('input');
+    assert.match(elements['history-values'].children[0].textContent, /No buyout listings0/);
+
+    elements['history-range'].value = '30';
+    await elements['history-range'].trigger('change');
+    assert.equal(attempts, 6);
+    assert.match(elements['history-status'].textContent, /couldn’t load/);
+    assert.equal(elements['history-chart'].hidden, false);
+    assert.equal(elements['history-retry'].hidden, false);
+    await elements['history-retry'].trigger('click');
+    assert.equal(attempts, 7);
+    assert.equal(elements['history-retry'].hidden, true);
+    assert.equal(calls.filter(({ path }) => path === hostedOrigin + '/api/snapshot').length, 1);
+    await elements['history-close'].trigger('click');
+    await elements['history-dialog'].trigger('close');
+    assert.equal(elements['history-dialog'].open, false);
+    assert.equal(link.focused, true);
   });
 });
