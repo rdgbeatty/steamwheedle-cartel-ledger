@@ -2,7 +2,7 @@
 
 The live US PvP history chart covers Alliance 110, Horde 113 and Neutral 116. Select an item name in the local tables to open its chart, including its equipment variant. GitHub Actions schedules collection hourly. Each house has up to one observation per source hour. The chart shows minimum unit buyout and listed buyout quantity, with gaps where observations are missing. The archive retains anonymous price levels for up to 90 days. [Live viewer](https://gathering-ledger.gathering-ledger.workers.dev/), [collector operations](cloudflare/live/README.md)
 
-The local collector, trading tables and data browser cover **all Forever items** in those three US PvP houses. The local app runs on **Node 18.18+** without installing dependencies. [Market mapping](docs/us-pvp-markets.md)
+The local collector, trading tables and data browser cover **all Forever items** in those three US PvP houses. The local app runs on **Node 18.18+** without installing dependencies. [Market mapping](docs/02-us-pvp-markets.md)
 
 ```sh
 npm start
@@ -31,7 +31,7 @@ Configured users open directly to the **Neutral → Alliance** table. A compact 
 
 All three tables have independent **category checkboxes**, with **All** and **None** shortcuts, inside an expandable Categories area. Select any combination; matching categories are combined with OR. Categories come from the full snapshot, not just profitable or currently searched rows, so filtering does not hide filter choices. Trade-goods subcategories such as cloth, leather, herbs and ores remain selectable alongside weapons, armor, consumables and other classes. New categories join an All selection automatically; explicit selections are preserved across snapshot updates.
 
-Each table renders **100 rows per page**. Filters and sorting apply to the complete dataset before pagination, and changing them returns to page one. Browsing, searching, checking categories and changing pages use the saved snapshot and make no Blizzard requests. [Local interface decision](docs/local-market-interface.md)
+Each table renders **100 rows per page**. Filters and sorting apply to the complete dataset before pagination, and changing them returns to page one. Browsing, searching, checking categories and changing pages use the saved snapshot and make no Blizzard requests. [Local interface decision](docs/06-local-market-interface.md)
 
 ## Neutral → Alliance
 
@@ -76,19 +76,19 @@ The local server reads AHledger's public Forever tables anonymously when page on
 
 Sales estimates remain separate from the saved Blizzard snapshot. Both the server and UI discard them at the provider's HTTP cache expiry, accounting for Age/Date; no-store/no-cache responses are not retained, and Retry-After blocks early retries. A server instance coalesces concurrent readers and limits each market to at most one download/minute. The UI does not poll this provider automatically; **Refresh sales estimates**, inside Metrics & data notes, retries using the provider cache and cooldown. Expiry returns rows to stock fallback (or excludes them in daily-only mode). The third party sees the server's network request; Blizzard credentials and player data are never sent. Personal/community use is documented as permitted with attribution; data archives and paid uses have separate terms. This tool stores none of these responses on disk.
 
-Both imbalance columns show the absolute price gap and which house is higher. Profit scores use three significant figures in gold and sort at full precision. Deposits, relisting, price changes and neutral sell-through are outside this score. [Trade screening decision](docs/alliance-neutral-strategy.md)
+Both imbalance columns show the absolute price gap and which house is higher. Profit scores use three significant figures in gold and sort at full precision. Deposits, relisting, price changes and neutral sell-through are outside this score. [Trade screening decision](docs/04-alliance-neutral-strategy.md)
 
 The catalog queries **Forever's static item search across all classes**. Live exploration found that an unfiltered search returns 1,000 results with `resultCountCapped: true` despite `pageCount: 1`. Collection therefore traverses ascending item-ID ranges (`orderby=id`, `id=[lastId+1,]`, 1,000 results/request), rather than treating the first page as complete. Repeated or unordered IDs, malformed responses and range failures abort catalog publication. No per-item metadata request or Retail/Classic fallback is used. Names ending in **Ore** receive the Ores filter label, but naming/category rules never exclude items. Bars, stones, other trade goods and all other classes are included.
 
-Blizzard's auction endpoints return whole house documents, so a collection downloads both items and commodities for the fixed houses, then retains summaries for **every auctioned item**, including IDs absent from static search, plus anonymous neutral price levels. It does not request each item price individually; all-item coverage and depth add no auction requests. The integration author's [current Forever notes](https://blizzard.pinta.land/forever/auctions/) document the separate books and ruleset/house ambiguity. The owner has since confirmed a successful live discovery/collection; the [mapping note](docs/us-pvp-markets.md) records the evidence behind the locked IDs.
+Blizzard's auction endpoints return whole house documents, so a collection downloads both items and commodities for the fixed houses, then retains summaries for **every auctioned item**, including IDs absent from static search, plus anonymous neutral price levels. It does not request each item price individually; all-item coverage and depth add no auction requests. The integration author's [current Forever notes](https://blizzard.pinta.land/forever/auctions/) document the separate books and ruleset/house ambiguity. The owner has since confirmed a successful live discovery/collection; the [mapping note](docs/02-us-pvp-markets.md) records the evidence behind the locked IDs.
 
 ## Local operation
 
 **Collect now** checks for newer API data with a server-enforced cooldown: five minutes after updated data, ten after the first unchanged check and fifteen after subsequent unchanged checks. New data resets the delay to five minutes. The button counts down; reloads, multiple tabs and backend restarts do not reset the persisted gate. Discovery, repeated setup and the web neutral-house check share it. Upstream Retry-After or an exhausted budget can impose a longer wait.
 
-Auction checks send the saved ETag or Last-Modified as a conditional GET, including after restart. When all six documents are unchanged, the price snapshot is left intact and **Last API check** reports **No newer auction data** separately from the source/collection ages. A fresh item catalog or missing price depth requires full responses, and a partially changed house may need one extra body fetch. HEAD is unsupported on the tested auction paths; the advertised 24-hour max-age does not establish the publisher's next update time. See the [live protocol findings](docs/collection-freshness.md).
+Auction checks send the saved ETag or Last-Modified as a conditional GET, including after restart. When all six documents are unchanged, the price snapshot is left intact and **Last API check** reports **No newer auction data** separately from the source/collection ages. A fresh item catalog or missing price depth requires full responses, and a partially changed house may need one extra body fetch. HEAD is unsupported on the tested auction paths; the advertised 24-hour max-age does not establish the publisher's next update time. See the [live protocol findings](docs/03-collection-freshness.md).
 
-The local server and diagnostic CLI share a **600-request rolling hourly limit**. When enrolled with the hosted service, they also reserve each request against the same 600-call ceiling as GitHub Actions. Collection details include local request usage. `.wow-local/request-budget.json` and `collection-state.json` persist local request counts, retry deadlines and the collection gate. [Budget rationale](docs/collection-freshness.md), [shared budget setup](cloudflare/live/README.md#operating-the-collector)
+The local server and diagnostic CLI share a **600-request rolling hourly limit**. When enrolled with the hosted service, they also reserve each request against the same 600-call ceiling as the Cloudflare collector. Collection details include local request usage. `.wow-local/request-budget.json` and `collection-state.json` persist local request counts, retry deadlines and the collection gate. [Budget rationale](docs/03-collection-freshness.md), [shared budget setup](cloudflare/live/README.md#operating-the-collector)
 
 ### Missing item names
 
@@ -126,7 +126,7 @@ The localhost app keeps the latest live snapshot. It expires the snapshot on rea
 
 ## Hosted market app
 
-The public site loads the current US PvP snapshot from Cloudflare. It offers both trading tables and the data browser, with listed stock as the activity proxy. GitHub Actions publishes the frontend from this repository and collects the latest complete snapshot and hourly history on a separate workflow. Wrangler's local emulator supports synthetic tests. [Pages app](https://rdgbeatty.github.io/steamwheedle-cartel-ledger/), [public app decision](docs/hosted-market-app.md), [live runbook](cloudflare/live/README.md), [local fixture](cloudflare/README.md)
+The public site loads the current US PvP snapshot from Cloudflare. It offers both trading tables and the data browser, with listed stock as the activity proxy. GitHub Actions publishes the frontend from this repository. Cloudflare runs the hourly collector and publishes the latest complete snapshot and history independently of Pages. Wrangler's local emulator supports synthetic tests. [Pages app](https://rdgbeatty.github.io/steamwheedle-cartel-ledger/), [public app decision](docs/07-hosted-market-app.md), [live runbook](cloudflare/live/README.md), [local fixture](cloudflare/README.md)
 
 ## To do
 
@@ -142,4 +142,4 @@ npm run check
 
 Tests cover the collector, request limits, catalog and variant handling, both trading models and the local UI. HTTP integration tests invoke the request listener in memory. UI tests use a DOM harness and AHledger tests use AHL1 fixtures.
 
-An authenticated November 17 probe found **17,733 catalog items in 18 range requests** and **3,062 auctioned IDs missing from the catalog**. An isolated live check verified that the immediate cooldown costs zero upstream requests and that an unchanged six-document check preserves the snapshot. [Collection decision](docs/collection-freshness.md)
+An authenticated November 17 probe found **17,733 catalog items in 18 range requests** and **3,062 auctioned IDs missing from the catalog**. An isolated live check verified that the immediate cooldown costs zero upstream requests and that an unchanged six-document check preserves the snapshot. [Collection decision](docs/03-collection-freshness.md)

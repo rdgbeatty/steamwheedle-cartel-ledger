@@ -7,8 +7,9 @@
   "workers_dev": true,
   "preview_urls": false,
   "assets": {"directory":"./site","run_worker_first":["/api/*"]},
-  "durable_objects": {"bindings":[{"name":"BOOKS","class_name":"BookDay"},{"name":"CONTROL","class_name":"LiveControl"}]},
-  "migrations":[{"tag":"live-v1","new_sqlite_classes":["BookDay","LiveControl"]}],
+  "durable_objects": {"bindings":[{"name":"BOOKS","class_name":"BookDay"},{"name":"CONTROL","class_name":"LiveControl"},{"name":"COLLECTOR","class_name":"MarketCollector"}]},
+  "migrations":[{"tag":"live-v1","new_sqlite_classes":["BookDay","LiveControl"]},{"tag":"collector-v1","new_sqlite_classes":["MarketCollector"]}],
   "kv_namespaces":[{"binding":"EXPIRY"},{"binding":"LATEST"}],
+  "triggers": {"crons": ["37 * * * *"]},
   "observability":{"enabled":false}
 }

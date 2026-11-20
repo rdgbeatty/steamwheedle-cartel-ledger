@@ -2,12 +2,21 @@
   "name": "gathering-ledger-staging",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "wrangler dev --ip 127.0.0.1",
     "dry-run": "wrangler deploy --dry-run",
     "pilot": "node pilot.mjs",
     "test": "node --test test/*.test.mjs"
   },
-  "devDependencies": { "wrangler": "4.165.0" }
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "miniflare": "5.20261118.0-beta",
+    "wrangler": "4.165.0"
+  },
+  "dependencies": {
+    "@streamparser/json": "0.0.26"
+  }
 }

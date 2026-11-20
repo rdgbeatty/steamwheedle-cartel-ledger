@@ -21,7 +21,7 @@ test('OAuth client credentials, fixed Forever namespace and one reusable token',
   assert.equal(new URL(calls[1].url).searchParams.get('namespace'), 'dynamic-forever-us');
   assert.equal(new URL(calls[2].url).searchParams.get('namespace'), 'static-forever-us');
   assert.equal(new URL(calls[2].url).searchParams.get('locale'), 'en_US');
-  assert.ok(calls.every(({ options }) => options.redirect === 'error'));
+  assert.ok(calls.every(({ options }) => options.redirect === 'manual'));
   await assert.rejects(api.get('https://attacker.invalid/data/wow/foo'), /Unsupported/);
   await assert.rejects(api.get('/data/wow/item/1', { namespace: 'static-us' }), /Only Forever/);
 });

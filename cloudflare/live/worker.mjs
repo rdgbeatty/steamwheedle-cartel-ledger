@@ -1,12 +1,13 @@
 import { DurableObject } from 'cloudflare:workers';
-import { inflateSync } from 'node:zlib';
+import { Buffer } from 'node:buffer';
+import { MarketCollector, MAX_SNAPSHOT } from './collector.mjs';
+import { bookParts, MAX_BOOK, SHARDS, unpackBlock } from './stream-book.mjs';
+
+export { MarketCollector };
 
 const HOUR = 3_600_000,
   DAY = 24 * HOUR;
-const SHARDS = 32,
-  HOUSES = [110, 113, 116],
-  MAX_UPLOAD = 4 * 1024 * 1024;
-const MAX_SNAPSHOT = 8 * 1024 * 1024;
+const HOUSES = [110, 113, 116];
 const SNAPSHOT_KEY = 'latest';
 const PAGES_ORIGIN = 'https://rdgbeatty.github.io';
 const json = (body, status = 200) =>
@@ -30,21 +31,11 @@ async function open(key, data) {
   const v = bytes(data);
   return crypto.subtle.decrypt({ name: 'AES-GCM', iv: v.subarray(0, 12) }, key, v.subarray(12));
 }
-function parseFrame(body) {
-  const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
-  let pos = 0;
-  const parts = [];
-  for (let shard = 0; shard < SHARDS; shard++) {
-    const length = view.getUint32(pos, true);
-    pos += 4;
-    const split = view.getUint32(pos, true);
-    if (length < 5 || split < 1 || split >= length - 4 || pos + length > body.length)
-      throw Error('invalid frame');
-    parts.push([body.subarray(pos + 4, pos + 4 + split), body.subarray(pos + 4 + split, pos + length)]);
-    pos += length;
+class PublicationError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
   }
-  if (pos !== body.length) throw Error('extra bytes');
-  return parts;
 }
 
 // A single transaction publishes an entire house. All books whose oldest source falls
@@ -84,6 +75,18 @@ export class BookDay extends DurableObject {
       checked = Number(p.get('checked')),
       house = Number(p.get('house')),
       version = p.get('version');
+    if (Number(request.headers.get('content-length')) > MAX_BOOK)
+      return json({ error: 'Oversize book' }, 413);
+    const body = bytes(await request.arrayBuffer());
+    try {
+      return json(await this.writePublication({ house, source, checked, version }, body));
+    } catch (error) {
+      if (error instanceof PublicationError) return json({ error: error.message }, error.status);
+      throw error;
+    }
+  }
+
+  async writePublication({ house, source, checked, version }, body) {
     const hour = Math.floor(source / HOUR);
     if (
       !Number.isSafeInteger(source) ||
@@ -94,17 +97,13 @@ export class BookDay extends DurableObject {
       checked < source ||
       checked > Date.now() + 60000 ||
       !/^[a-f0-9]{64}$/.test(version)
-    )
-      return json({ error: 'Invalid publication' }, 400);
-    if (Number(request.headers.get('content-length')) > MAX_UPLOAD)
-      return json({ error: 'Oversize book' }, 413);
-    const body = bytes(await request.arrayBuffer());
-    if (body.length > MAX_UPLOAD) return json({ error: 'Oversize book' }, 413);
+    ) throw new PublicationError('Invalid publication', 400);
+    if (body.length > MAX_BOOK) throw new PublicationError('Oversize book', 413);
     let parts;
     try {
-      parts = parseFrame(body);
+      parts = bookParts(body);
     } catch {
-      return json({ error: 'Invalid book' }, 422);
+      throw new PublicationError('Invalid book', 422);
     }
     // Serialise key creation and publication selection across overlapping retries.
     return this.ctx.blockConcurrencyWhile(async () => {
@@ -116,9 +115,9 @@ export class BookDay extends DurableObject {
         old &&
         (old.version === version || old.source > source || (old.source === source && old.checked >= checked))
       )
-        return json({ reused: true });
+        return { reused: true };
       const key = await this.getKey(hour, true);
-      if (!key) return json({ error: 'Publication expired' }, 410);
+      if (!key) throw new PublicationError('Publication expired', 410);
       const encrypted = await Promise.all(
         parts.map((pair) => Promise.all(pair.map((data) => seal(key, data))))
       );
@@ -136,9 +135,32 @@ export class BookDay extends DurableObject {
           version
         );
       });
-      return json({ published: true });
+      return { published: true };
     });
   }
+
+  async readPublication(house, source, version) {
+    const hour = Math.floor(source / HOUR);
+    if (hour <= hourNow() - 2160) throw Error('Publication expired.');
+    const key = await this.getKey(hour);
+    if (!key) throw Error('Publication key temporarily unavailable.');
+    const rows = this.sql.exec(
+      `SELECT shard,chart,depth FROM blocks JOIN publications USING(hour,house)
+       WHERE hour=? AND house=? AND source=? AND version=? ORDER BY shard`, hour, house, source, version
+    ).toArray();
+    if (rows.length !== SHARDS) throw Error('Book publication is missing or superseded.');
+    const chunks = [];
+    for (const row of rows) {
+      const chart = bytes(await open(key, row.chart));
+      const depth = bytes(await open(key, row.depth));
+      const header = Buffer.alloc(8);
+      header.writeUInt32LE(4 + chart.length + depth.length);
+      header.writeUInt32LE(chart.length, 4);
+      chunks.push(header, chart, depth);
+    }
+    return Uint8Array.from(Buffer.concat(chunks));
+  }
+
   async read(item, variant, from, to, depthHouse) {
     if (!this.sql.exec("SELECT 1 FROM sqlite_master WHERE name='publications'").toArray().length) return [];
     const columns = depthHouse ? 'b.chart,b.depth' : 'b.chart';
@@ -170,7 +192,7 @@ export class BookDay extends DurableObject {
       const key = this.keys.get(p.hour);
       if (!key) throw Error('Publication key temporarily unavailable.');
       const unpack = async (blob) =>
-        JSON.parse(inflateSync(await open(key, blob), { maxOutputLength: 8 * 1024 * 1024 }).toString());
+        unpackBlock(bytes(await open(key, blob)));
       const quotes = await unpack(p.chart);
       const index = quotes.findIndex((q) => q[0] === item && q[1] === variant);
       const q = quotes[index];
@@ -230,26 +252,37 @@ export class LiveControl extends DurableObject {
     const startedAt = Number(query.get('startedAt'));
     const retainedAt = Number(query.get('retainedAt'));
     const digest = query.get('digest');
-    const expires = Math.floor((retainedAt + 30 * DAY) / 1000);
     const size = Number(request.headers.get('content-length'));
+    if (!Number.isSafeInteger(size) || size < 20 || size > MAX_SNAPSHOT)
+      return json({ error: 'Invalid snapshot metadata' }, 400);
+    const body = bytes(await request.arrayBuffer());
+    if (body.byteLength !== size) return json({ error: 'Invalid compressed snapshot' }, 422);
+    try {
+      return json(await this.publishSnapshot({ startedAt, retainedAt, digest }, body));
+    } catch (error) {
+      if (error instanceof PublicationError) return json({ error: error.message }, error.status);
+      throw error;
+    }
+  }
+
+  async publishSnapshot({ startedAt, retainedAt, digest }, body) {
+    const expires = Math.floor((retainedAt + 30 * DAY) / 1000);
     if (!Number.isSafeInteger(startedAt) || startedAt <= Date.now() - HOUR || startedAt > Date.now() + 60000 ||
         !Number.isSafeInteger(retainedAt) || retainedAt > Date.now() + 60000 ||
         !(expires > Date.now() / 1000 + 60) || !/^[a-f0-9]{64}$/.test(digest) ||
-        !Number.isSafeInteger(size) || size < 20 || size > MAX_SNAPSHOT)
-      return json({ error: 'Invalid snapshot metadata' }, 400);
-    const body = await request.arrayBuffer();
-    const header = new Uint8Array(body, 0, Math.min(2, body.byteLength));
-    if (body.byteLength !== size || header[0] !== 0x1f || header[1] !== 0x8b)
-      return json({ error: 'Invalid compressed snapshot' }, 422);
+        body.byteLength < 20 || body.byteLength > MAX_SNAPSHOT)
+      throw new PublicationError('Invalid snapshot metadata', 400);
+    if (body[0] !== 0x1f || body[1] !== 0x8b)
+      throw new PublicationError('Invalid compressed snapshot', 422);
     return this.ctx.blockConcurrencyWhile(async () => {
       const previous = await this.ctx.storage.get('latestSnapshotStartedAt');
-      if (previous >= startedAt) return json({ reused: true });
-      await this.env.LATEST.put(SNAPSHOT_KEY, body, {
+      if (previous >= startedAt) return { reused: true };
+      await this.env.LATEST.put(SNAPSHOT_KEY, body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength), {
         expiration: expires,
         metadata: { expires, etag: '"' + digest + '"' }
       });
       await this.ctx.storage.put('latestSnapshotStartedAt', startedAt);
-      return json({ published: true });
+      return { published: true };
     });
   }
 }
@@ -279,7 +312,13 @@ async function serveSnapshot(request, env) {
 }
 
 const dayStub = (env, hour) => env.BOOKS.getByName('forever-us-pvp/' + Math.floor(hour / 24));
+const collector = (env) => env.COLLECTOR.getByName('forever-us-pvp');
 export default {
+  async scheduled(_event, env) {
+    const result = await collector(env).run();
+    if (['incomplete', 'failed', 'credentials-required'].includes(result.status))
+      throw Error('Market collection: ' + JSON.stringify(result));
+  },
   async fetch(request, env) {
     const url = new URL(request.url),
       p = url.searchParams;
@@ -321,6 +360,10 @@ export default {
     const action = url.pathname.slice('/api/collector/'.length);
     if (['take', 'defer', 'status'].includes(action))
       return json(await control.budget(action, Number(p.get('until'))));
+    if (action === 'run') {
+      const result = await collector(env).run(p.get('force') === '1');
+      return json(result, ['incomplete', 'failed', 'credentials-required'].includes(result.status) ? 502 : 200);
+    }
     if (action === 'snapshot') return control.fetch(request);
     const house = Number(p.get('house'));
     if (!HOUSES.includes(house)) return json({ error: 'Unknown house' }, 400);

@@ -33,7 +33,7 @@ function maxAge(headers, now) {
 }
 
 export class BlizzardClient {
-  constructor(credentials, { fetchImpl = fetch, now = () => Date.now(), budget = null, sleep = (ms, signal) => new Promise((resolve, reject) => {
+  constructor(credentials, { fetchImpl = fetch, now = () => Date.now(), budget = null, cacheBodies = true, sleep = (ms, signal) => new Promise((resolve, reject) => {
     const done = () => { signal?.removeEventListener('abort', abort); resolve(); };
     const timer = setTimeout(done, ms);
     const abort = () => { clearTimeout(timer); reject(new ApiError('Collection canceled.')); };
@@ -45,6 +45,7 @@ export class BlizzardClient {
     this.now = now;
     this.budget = budget ?? new RequestBudget({ now });
     this.sleep = sleep;
+    this.cacheBodies = cacheBodies;
     this.token = null;
     this.cache = new Map();
     this.cacheTimers = new Map();
@@ -58,7 +59,7 @@ export class BlizzardClient {
 
   dispose() { for (const url of this.cache.keys()) this.forget(url); this.token = null; }
 
-  async request(url, options, signal, tokenRequest = false) {
+  async request(url, options, signal, tokenRequest = false, readBody = boundedJson) {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (signal?.aborted) throw new ApiError('Collection canceled.');
       try { await this.budget.take(); }
@@ -72,7 +73,8 @@ export class BlizzardClient {
       const timer = setTimeout(abort, 30_000);
       try {
         this.requests++;
-        const response = await this.fetch(url, { ...options, redirect: 'error', signal: controller.signal });
+        const fetchImpl = this.fetch;
+        const response = await fetchImpl(url, { ...options, redirect: 'manual', signal: controller.signal });
         const retry = response.headers.get('retry-after');
         const retryMs = retry === null ? null : /^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - this.now());
         if (Number.isFinite(retryMs)) await this.budget.defer(this.now() + retryMs);
@@ -94,7 +96,7 @@ export class BlizzardClient {
             : `Blizzard ${new URL(url).pathname} returned HTTP ${response.status}.`;
           throw new ApiError(message, response.status);
         }
-        const data = response.status === 304 ? null : await boundedJson(response, tokenRequest ? 64_000 : 64 * 1024 * 1024);
+        const data = response.status === 304 ? null : await readBody(response, tokenRequest ? 64_000 : 64 * 1024 * 1024);
         return { response, data };
       } catch (error) {
         if (signal?.aborted) throw new ApiError('Collection canceled.');
@@ -127,7 +129,7 @@ export class BlizzardClient {
     return this.token.value;
   }
 
-  async get(path, { namespace = 'dynamic', query = {}, signal, revalidate = false, validators = null, forceBody = false } = {}) {
+  async get(path, { namespace = 'dynamic', query = {}, signal, revalidate = false, validators = null, forceBody = false, readBody } = {}) {
     if (!path.startsWith('/data/wow/') || path.includes('..') || path.includes('?') || path.includes('#')) throw new ApiError('Unsupported Blizzard path.');
     if (!['dynamic', 'static'].includes(namespace)) throw new ApiError('Only Forever game-data namespaces are supported.');
     const url = new URL(path, API);
@@ -150,7 +152,7 @@ export class BlizzardClient {
           Authorization: `Bearer ${accessToken}`,
           ...(etag ? { 'If-None-Match': etag } : modified ? { 'If-Modified-Since': modified } : {}),
           ...(revalidate ? { 'Cache-Control': 'max-age=0' } : {}),
-        } }, signal);
+        } }, signal, false, readBody);
         break;
       } catch (error) {
         if (error.status !== 401 || attempt) throw error;
@@ -182,7 +184,7 @@ export class BlizzardClient {
     if (rawExpiresAt <= this.now()) { this.forget(url.href); throw new ApiError('Blizzard returned observations beyond the 30-day retention limit.'); }
     // Keep only a few raw responses in memory; raw auction books never go to disk.
     this.forget(url.href);
-    if (document.data !== null && !/(?:^|,)\s*no-store\b/i.test(response.headers.get('cache-control') ?? '')) {
+    if (this.cacheBodies && document.data !== null && !/(?:^|,)\s*no-store\b/i.test(response.headers.get('cache-control') ?? '')) {
       this.cache.set(url.href, { document, etag: document.etag, rawExpiresAt,
         expiresAt: Math.min(rawExpiresAt, this.now() + maxAge(response.headers, this.now())) });
       const purge = setTimeout(() => this.forget(url.href), Math.min(rawExpiresAt - this.now(), 2_147_483_647));

@@ -1,15 +1,9 @@
 import { createHash } from 'node:crypto';
 import { US_PVP, MAPPING_EVIDENCE, validatePvpHouses } from '../shared/market.mjs';
+import { normalizeAuction } from '../shared/auction.mjs';
 import { ALL_ITEMS_SCOPE, unknownItem } from '../shared/items.mjs';
 
 export const FACTIONS = ['alliance', 'horde', 'neutral'];
-
-function variant(item) {
-  const bonuses = [...(item.bonus_lists ?? [])].sort((a, b) => a - b);
-  const modifiers = [...(item.modifiers ?? [])].map(({ type, value }) => [type, value]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const context = item.context || 0;
-  return bonuses.length || modifiers.length || context ? JSON.stringify([context, bonuses, modifiers]) : '';
-}
 
 function entries(document, houseId) {
   const body = document.data;
@@ -30,15 +24,7 @@ export function reduceHouse(documents, catalog, houseId, { priceDepth = houseId 
     const rows = entries(document, houseId);
     for (const row of rows) {
       if (catalog.scope !== ALL_ITEMS_SCOPE && !tracked.has(row.item?.id)) continue;
-      if (!Number.isSafeInteger(row.item?.id) || row.item.id < 1) throw new Error('An auction has an invalid item ID.');
-      if (!Number.isSafeInteger(row.id) || row.id < 1 || !Number.isSafeInteger(row.quantity) || row.quantity < 1) throw new Error('A tracked auction has an invalid ID or quantity.');
-      const unitPrice = row.unit_price ?? (row.buyout === undefined || row.buyout === 0 ? null : row.buyout / row.quantity);
-      if ((row.unit_price !== undefined && (!Number.isSafeInteger(row.unit_price) || row.unit_price <= 0)) ||
-        (row.buyout !== undefined && (!Number.isSafeInteger(row.buyout) || row.buyout < 0)) ||
-        (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice <= 0))) throw new Error('A tracked auction has an invalid price.');
-      const totalBuyout = unitPrice === null ? null : row.unit_price === undefined ? row.buyout : row.unit_price * row.quantity;
-      if (totalBuyout !== null && !Number.isSafeInteger(totalBuyout)) throw new Error('A tracked auction total exceeded safe numeric precision.');
-      const value = { id: row.id, itemId: row.item.id, variant: variant(row.item), quantity: row.quantity, unitPrice, totalBuyout };
+      const value = normalizeAuction(row);
       if (unique.has(row.id) && JSON.stringify(unique.get(row.id)) !== JSON.stringify(value)) throw new Error('Item and commodity documents disagree on an auction ID. Retry after the next publication.');
       unique.set(row.id, value);
       if (includeOffers) {
