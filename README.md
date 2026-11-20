@@ -1,9 +1,8 @@
 # WoW: Forever auction-house trader
 
-The live US PvP history chart covers Alliance 110, Horde 113 and Neutral 116. Select an item name in the local tables to open its chart, including its equipment variant. GitHub Actions runs the collector hourly at minute 37 UTC. Each distinct publication contributes its minimum unit buyout and listed buyout quantity. Price gaps show missing publications. The archive also records anonymous price levels and retains up to 90 days of source history. [Live viewer](https://gathering-ledger.gathering-ledger.workers.dev/), [collector operations](cloudflare/live/README.md)
+The live US PvP history chart covers Alliance 110, Horde 113 and Neutral 116. Select an item name in the local tables to open its chart, including its equipment variant. GitHub Actions schedules collection hourly. Each house has up to one observation per source hour. The chart shows minimum unit buyout and listed buyout quantity, with gaps where observations are missing. The archive retains anonymous price levels for up to 90 days. [Live viewer](https://gathering-ledger.gathering-ledger.workers.dev/), [collector operations](cloudflare/live/README.md)
 
-
-Small local collector, trading tables and data browser for **all Forever items**, locked to **US PvP**: Alliance **110**, Horde **113**, neutral **116**. Requires **Node 18.18+**; no dependency installation is needed. See [mapping evidence and metric definitions](docs/us-pvp-markets.md).
+The local collector, trading tables and data browser cover **all Forever items** in those three US PvP houses. The local app runs on **Node 18.18+** without installing dependencies. [Market mapping](docs/us-pvp-markets.md)
 
 ```sh
 npm start
@@ -32,7 +31,7 @@ Configured users open directly to the **Neutral → Alliance** table. A compact 
 
 All three tables have independent **category checkboxes**, with **All** and **None** shortcuts, inside an expandable Categories area. Select any combination; matching categories are combined with OR. Categories come from the full snapshot, not just profitable or currently searched rows, so filtering does not hide filter choices. Trade-goods subcategories such as cloth, leather, herbs and ores remain selectable alongside weapons, armor, consumables and other classes. New categories join an All selection automatically; explicit selections are preserved across snapshot updates.
 
-Each table renders **100 rows per page**. Filters and sorting apply to the complete dataset before pagination, and changing them returns to page one. Browsing, searching, checking categories and changing pages use the saved snapshot and make no Blizzard requests.
+Each table renders **100 rows per page**. Filters and sorting apply to the complete dataset before pagination, and changing them returns to page one. Browsing, searching, checking categories and changing pages use the saved snapshot and make no Blizzard requests. [Local interface decision](docs/local-market-interface.md)
 
 ## Neutral → Alliance
 
@@ -53,7 +52,7 @@ expected profit = sum of strictly positive level profits
 
 The click-open **ⓘ** beside each profit shows a table of profitable price levels, unit/offer counts, exact purchase costs, Alliance gross proceeds, the negative 5% deduction and profit, plus totals. Equal-price offers are grouped; whole-stack buyouts retain their original total purchase costs. Duplicate auction IDs across item/commodity books are counted once, bid-only listings are excluded, and item variants remain separate. Break-even and loss-making levels do not contribute. The model applies exactly 5% proportionally; individual fee rounding, deposits, relisting costs and future price changes are excluded.
 
-**Collect now once after this update** to obtain neutral price depth. Older snapshots contain summaries only, so they remain usable on the comparison page but cannot produce resale profit estimates. Failed houses, absent Alliance asks and incomplete depth do not generate opportunities. Neutral price-level aggregates contain no auction or player identities and remain subject to the latest snapshot's 30-day expiry; they are not a historical archive.
+Click **Collect now** if an older snapshot has only summaries. The Neutral → Alliance page needs complete neutral price levels and an Alliance ask. Its local snapshot retains anonymous aggregates for at most 30 days.
 
 ## Alliance → Neutral opportunities
 
@@ -73,11 +72,11 @@ This is a **ceiling on your opportunity**, not your realized profit or an assump
 
 The volume source defaults to **estimated daily sales when both faction estimates exist; otherwise both sides use current listed buyout stock**. The table always shows faction stock, with daily estimates underneath when available; each score identifies its daily or stock basis. A known zero estimate remains zero. Daily-only mode excludes missing coverage, and stock-only mode never uses estimates. The smaller faction volume supplies the score in both/either filter modes. Neither faction volume measures neutral demand, a player's market share or how many units should be purchased. Full Alliance stock is not all offered at its minimum price.
 
-The local server reads [AHledger's documented public Forever tables](https://ahledger.com/developers) anonymously when page one is first opened with live prices; no provider credentials are required. The table's ninth field encodes estimated units sold/day × 10. Estimates derive from scans over seven days, or fourteen on quieter houses, and cannot reliably distinguish all cancellations from sales; see the [provider's methodology](https://ahledger.com/glossary). Live coverage and the published payload contract could not be authenticated by this runner because outbound DNS is unavailable; unsupported payloads, unavailable services, stale cache entries and absent item estimates fall back explicitly. Base-item estimates are never applied to item variants.
+The local server reads AHledger's public Forever tables anonymously when page one opens with live prices. The table's ninth field encodes estimated units sold per day × 10. Estimates derive from scans over seven days, or fourteen on quieter houses. Cancellations can resemble sales. Missing estimates, stale cache entries and unavailable or unsupported responses trigger the configured fallback. Estimates apply only to base items. [AHledger API](https://ahledger.com/developers), [estimate methodology](https://ahledger.com/glossary)
 
 Sales estimates remain separate from the saved Blizzard snapshot. Both the server and UI discard them at the provider's HTTP cache expiry, accounting for Age/Date; no-store/no-cache responses are not retained, and Retry-After blocks early retries. A server instance coalesces concurrent readers and limits each market to at most one download/minute. The UI does not poll this provider automatically; **Refresh sales estimates**, inside Metrics & data notes, retries using the provider cache and cooldown. Expiry returns rows to stock fallback (or excludes them in daily-only mode). The third party sees the server's network request; Blizzard credentials and player data are never sent. Personal/community use is documented as permitted with attribution; data archives and paid uses have separate terms. This tool stores none of these responses on disk.
 
-Minimum/median unit prices, buyout stock/offer counts, and the Horde–Alliance and Neutral–Alliance imbalances remain available. Profit scores use three significant figures in gold; sorting retains full values. Deposits, relisting, price changes and neutral sell-through are outside this score. See the [worked model](docs/alliance-neutral-strategy.md).
+Both imbalance columns show the absolute price gap and which house is higher. Profit scores use three significant figures in gold and sort at full precision. Deposits, relisting, price changes and neutral sell-through are outside this score. [Trade screening decision](docs/alliance-neutral-strategy.md)
 
 The catalog queries **Forever's static item search across all classes**. Live exploration found that an unfiltered search returns 1,000 results with `resultCountCapped: true` despite `pageCount: 1`. Collection therefore traverses ascending item-ID ranges (`orderby=id`, `id=[lastId+1,]`, 1,000 results/request), rather than treating the first page as complete. Repeated or unordered IDs, malformed responses and range failures abort catalog publication. No per-item metadata request or Retail/Classic fallback is used. Names ending in **Ore** receive the Ores filter label, but naming/category rules never exclude items. Bars, stones, other trade goods and all other classes are included.
 
@@ -89,9 +88,7 @@ Blizzard's auction endpoints return whole house documents, so a collection downl
 
 Auction checks send the saved ETag or Last-Modified as a conditional GET, including after restart. When all six documents are unchanged, the price snapshot is left intact and **Last API check** reports **No newer auction data** separately from the source/collection ages. A fresh item catalog or missing price depth requires full responses, and a partially changed house may need one extra body fetch. HEAD is unsupported on the tested auction paths; the advertised 24-hour max-age does not establish the publisher's next update time. See the [live protocol findings](docs/collection-freshness.md).
 
-The local server and diagnostic CLI share a conservative **600-request rolling hourly budget**, well below 36,000. It counts OAuth, catalog requests, retries and conditional checks; request usage appears inside collection details. `.wow-local/request-budget.json` and `collection-state.json` persist usage/retry deadlines and the collection gate, with no secrets or API bodies. Other programs or machines using the same credentials are outside this local counter. Six auction checks every five minutes is 72 requests/hour before those other costs; adding tracked items does not multiply the whole-house endpoint count.
-
-**Why 600?** This is an application safety cap, not a separate Blizzard quota or a claim that 600 is the optimal value. The normal five-minute schedule needs at most about 72 auction requests/hour; unchanged-data backoff uses fewer. A catalog refresh currently adds 18 requests once/day, with occasional OAuth, discovery, retries and neutral-house diagnostics. 600 gives roughly eight times the ordinary auction traffic in headroom while using only 1.67% of the stated 36,000 maximum. It stops accidental loops early and leaves capacity for other clients. It limits the rolling total, not instantaneous request spacing, and an upstream lower limit or Retry-After takes precedence.
+The local server and diagnostic CLI share a **600-request rolling hourly limit**. When enrolled with the hosted service, they also reserve each request against the same 600-call ceiling as GitHub Actions. Collection details include local request usage. `.wow-local/request-budget.json` and `collection-state.json` persist local request counts, retry deadlines and the collection gate. [Budget rationale](docs/collection-freshness.md), [shared budget setup](cloudflare/live/README.md#operating-the-collector)
 
 ### Missing item names
 
@@ -116,6 +113,7 @@ The server binds to **127.0.0.1** and serves an explicit list of assets. Its ign
 | File | Purpose |
 | --- | --- |
 | `private/credentials.json` | Saved application ID and secret. Written with mode 0600; unencrypted at rest, with effective permissions determined by the filesystem/Windows ACLs. |
+| `private/history-service.json` | Optional live collector origin and ingestion secret for sharing the hosted Blizzard request budget. |
 | `settings.json` | Discovered houses and the fixed US PvP selection. Older saved selections are migrated. |
 | `catalog.json` | Full Forever item catalog, refreshed after one day, on scope upgrade, or when requested. Original data age still enforces the 30-day retention limit. |
 | `snapshot.json` | Latest all-item market summaries and anonymous neutral price levels (unit price, quantity, offer count and purchase cost). Auction/player identities, raw books and OAuth tokens are not saved. |
@@ -124,17 +122,16 @@ The client secret is never returned by the server. Access tokens stay in memory 
 
 A failed full collection preserves the last successful snapshot. A partial collection explicitly marks the failed houses unavailable rather than mixing old and new quotes. Conditional requests preserve the original source age. No background collection runs: click **Collect now** when needed, with cached responses reused according to upstream headers. Cancel stops an active job.
 
-The localhost market app keeps the latest live snapshot. Snapshots older than 30 days, measured from the oldest known source/retrieval time, are removed when read. The separate **Cloudflare staging pilot** implements history ingestion and a per-item chart using synthetic data. It includes a local runtime test, a resumable 90-day fixture and manual deployment workflows. [Staging setup and verification](cloudflare/README.md)
+The localhost app keeps the latest live snapshot. It expires the snapshot on read after 30 days from its oldest known source or retrieval time.
 
-The [hourly history storage spike](docs/history-storage-spike.md) measures the current data and compares 90-day summary history, SQLite, anonymous price depth and full order books. It includes reproducible sizing scripts; no archive or scheduled collection is enabled.
+## Hosted market app
 
-The [history hosting spike](docs/history-hosting-spike.md) compares the EVE repository's GitHub-only design with GitHub plus R2, local SQLite and hosted SQL.
+The public site loads the current US PvP snapshot from Cloudflare. It offers both trading tables and the data browser, with listed stock as the activity proxy. GitHub Actions publishes the latest complete snapshot and the hourly history independently of website deployments. Wrangler's local emulator supports synthetic tests. [Pages app](https://rdgbeatty.github.io/gathering-ledger/), [public app decision](docs/hosted-market-app.md), [live runbook](cloudflare/live/README.md), [local fixture](cloudflare/README.md)
 
-The [Releases, browser delivery and billing follow-up](docs/github-releases-and-billing-spike.md) evaluates daily archives, small favorite-item downloads, live CORS headers, and provider-enforced cost controls. Under the owner's hard-overage requirement it favors Releases plus Pages over R2; this remains a proposal.
+## To do
 
-The [Durable Objects Free spike](docs/durable-objects-storage-spike.md) measured **0.856 GB compressed** and **2.403 GB uncompressed** in a local SQLite sizing experiment for 90 hourly days. It also examines free-plan write limits and browser delivery.
-
-The [Cloudflare deployment proposal](docs/cloudflare-deployment-proposal.md) explains Worker and Durable Object CPU limits, production rollout criteria and the retention decision for live data. The staging workflows run on manual dispatch.
+- Estimate market activity from our own hourly stock and order-book history. Validate what stock changes can tell us about sales.
+- Investigate Cloudflare backups and rehearse a restore of market books and their expiring keys while preserving the retention policy.
 
 ## Validation and limitations
 
@@ -143,26 +140,6 @@ npm test
 npm run check
 ```
 
-Tests exercise OAuth requests and renewal, retry/cache behavior, capped-search ID traversal, all-item catalog migration and missing metadata, price normalization, variants, failure states, secret handling, US PvP scope enforcement, compact metrics, both imbalance pairs, resale price depth and exact stack costs, both routes' fee models, filter boundaries, daily estimates versus stock fallback, provider cache expiry and Retry-After, base-item scope, summary-only snapshot compatibility, click-open math, the four-hour expansion rule, tab navigation, HTTP route security, independent checkbox filters and pagination after sorting. HTTP integration tests invoke the real request listener through an in-memory transport, and UI tests use a DOM harness. Provider fixtures follow the published AHL1 contract; these checks do not claim a real-browser or live provider run by the development agent.
+Tests cover the collector, request limits, catalog and variant handling, both trading models and the local UI. HTTP integration tests invoke the request listener in memory. UI tests use a DOM harness and AHledger tests use AHL1 fixtures.
 
-The resumed development runner now has network access. Authenticated Blizzard header and conditional-request probes succeeded, and an isolated local HTTP test verified live collection, zero-request cooldown rejection and an unchanged six-document check without rewriting the snapshot. The owner's normal saved snapshot was preserved. API errors appear in the local page without echoing credentials; future changes to Forever's undocumented API may need adjustment.
-
-An additional authenticated **all-item** probe on 2026-11-17 (US Eastern) found **17,733 static items in 18 range requests** across 23 categories. The six auction feeds contained 236,889 Alliance, 263,474 Horde and 33,549 neutral listings, reduced to 54,842 listed item variants. Another 14,332 catalog bases had no listings, for 69,174 browser rows with Only listed items off. The auctions included 3,062 distinct item IDs absent from static search; all were retained as Unknown. A second six-request conditional check reported unchanged books and reproduced the same rows. Counts describe that snapshot, not permanent catalog/market totals. OAuth added one request per validation client; all probes used the shared 600/hour budget. No raw books or validation price snapshot were saved.
-
-## Discovery spike
-
-Discovery spike, researched **2026-11-16**. Throughout this project, **WoW** means **World of Warcraft: Forever**. Other WoW editions are outside scope.
-
-The initial trading context is **US, PvP, Alliance**. Collection must also cover **US PvP Horde**, with **neutral/goblin prices** investigated for cross-faction opportunities. Region and ruleset are explicit filters. Historical price graphs are a confirmed requirement.
-
-Read the spike in this order:
-
-1. [Requirements inferred from the EVE project, and confirmed WoW requirements](docs/discovery/01-requirements.md)
-2. [Available APIs, source permissions, coverage and research evidence](docs/discovery/02-data-access.md)
-3. [Required data, collection experiments and acceptance criteria](docs/discovery/03-collection-plan.md)
-
-The recommendation is to **validate Blizzard's Forever feed first**, especially the mapping between API house IDs and the player's actual markets. Published community integrations demonstrate access, but this spike did not authenticate against Blizzard. Third-party APIs offer useful alternatives and history, with material differences in coverage and reuse rights; see the source assessment before choosing one.
-
-Subsequent implementation: the owner has collected live data and the tool now uses the [corroborated US PvP mapping](docs/us-pvp-markets.md). The discovery documents retain their original research context.
-
-The discovery documents define the broader information and collection work. The local pilot above implements all-item browsing and the two trading tables; production storage, hosting and historical-data architecture remain deferred.
+An authenticated November 17 probe found **17,733 catalog items in 18 range requests** and **3,062 auctioned IDs missing from the catalog**. An isolated live check verified that the immediate cooldown costs zero upstream requests and that an unchanged six-document check preserves the snapshot. [Collection decision](docs/collection-freshness.md)

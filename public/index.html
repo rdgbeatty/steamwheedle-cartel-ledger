@@ -18,7 +18,7 @@
           <button id="market-tab" role="tab" aria-selected="false" aria-controls="market-view" tabindex="-1">Alliance → Neutral</button>
           <button id="resale-tab" role="tab" aria-selected="true" aria-controls="resale-view">Neutral → Alliance</button>
           <button id="browser-tab" role="tab" aria-selected="false" aria-controls="browser-view" tabindex="-1">Data browser</button>
-          <button id="setup-tab" role="tab" aria-selected="false" aria-controls="setup-view" tabindex="-1">Local setup</button>
+          <button id="setup-tab" role="tab" aria-selected="false" aria-controls="setup-view" tabindex="-1" data-local-only>Local setup</button>
         </nav>
       </div>
     </header>
@@ -53,13 +53,13 @@
             <summary>Trade filters <span id="trade-filter-summary" class="fine"></span></summary>
             <div class="trade-filter-body">
               <label class="checkbox"><input id="alliance-cheaper" type="checkbox" checked> Alliance price below Horde</label>
-              <label>Volume source<select id="volume-mode"><option value="auto">Daily estimates, else stock proxy</option><option value="daily">Daily estimates only</option><option value="stock">Listed-stock proxy only</option></select></label>
+              <label data-local-only>Volume source<select id="volume-mode"><option value="auto">Daily estimates, else stock proxy</option><option value="daily">Daily estimates only</option><option value="stock">Listed-stock proxy only</option></select></label>
               <label>Minimum units per market<input id="min-volume" type="number" min="0" step="1" value="1000"></label>
               <label>Apply volume minimum to<select id="volume-markets"><option value="both">Both Alliance and Horde</option><option value="either">Either faction market</option></select></label>
               <label>Minimum profit / unit (g)<input id="min-unit-profit" type="number" min="0" step="0.0001" value="0"></label>
               <label>Minimum profit × volume (g)<input id="min-profit-volume" type="number" min="0" step="0.01" value="1"></label>
               <button id="reset-trade-filters" type="button">Reset defaults</button>
-              <p class="fine">Both fees are included. Profit is an upper bound before the other trader's earnings. Daily estimates use units/day; fallback uses current listed units. Neither measures your neutral sell-through.</p>
+              <p class="fine">Both fees are included. Profit is an upper bound before the other trader's earnings. <span data-local-only>Daily estimates use units/day. </span>Stock measures currently listed units and serves as an activity proxy.</p>
             </div>
           </details>
           <span id="row-count" class="fine"></span>
@@ -150,9 +150,9 @@
           <summary>Metrics &amp; data notes <span id="warning-count" class="fine"></span></summary>
           <ul id="warnings" class="warnings" hidden></ul>
           <div id="market-metrics" class="table-note" hidden><p><strong>Profit × volume</strong> = (Horde ask × 0.95 × 0.85 − Alliance cost) × the smaller faction volume. This is a maximum opportunity score: the neutral price is set to the Horde buyer's break-even price, leaving them zero profit. Click ⓘ for both fees and both traders' profits at the actual neutral minimum. Your desired minimum profit is a filter on this net spread; it is never added to profit. Full Alliance stock is not all available at its minimum ask. Neutral liquidity, deposits, relisting and price changes are excluded; this score is not a buy quantity or expected realized profit.</p>
-          <p><strong>Filter low volume</strong> starts enabled, requiring 1,000 units on both faction markets. Change the threshold and both/either matching in Trade filters. Unchecking it removes the volume minimum while retaining the profit filters and score multiplier. Where both daily estimates exist, volume is the smaller of Alliance and Horde estimated units/day. Otherwise, both sides use current buyout stock as a supply proxy. A daily estimate is not completed-sales evidence, and faction volume does not establish neutral demand. Daily-only mode excludes missing coverage; measured zero stays zero. Each score says which basis it uses.</p>
-          <p id="liquidity-status" class="fine"></p><div class="actions"><button id="load-liquidity" type="button">Refresh sales estimates</button></div>
-          <p><a href="https://ahledger.com/developers" target="_blank" rel="noopener noreferrer">Sales estimates from AHledger ↗</a> · <a href="https://ahledger.com/glossary" target="_blank" rel="noopener noreferrer">Scan-based methodology ↗</a>. Estimates may confuse cancellations with sales and may be unavailable. Only Forever US PvP Alliance/Horde are used.</p></div>
+          <p><strong>Filter low volume</strong> starts enabled, requiring 1,000 units on both faction markets. Change the threshold and both/either matching in Trade filters. Unchecking it removes the volume minimum while retaining the profit filters and score multiplier. The score uses the smaller faction volume. Listed stock measures supply. <span data-local-only>Where both daily estimates exist, the default uses estimated units/day. Daily-only mode excludes missing coverage and measured zero stays zero. </span>Each score shows its basis.</p>
+          <p id="liquidity-status" class="fine" data-local-only></p><div class="actions" data-local-only><button id="load-liquidity" type="button">Refresh sales estimates</button></div>
+          <p data-local-only><a href="https://ahledger.com/developers" target="_blank" rel="noopener noreferrer">Sales estimates from AHledger ↗</a> · <a href="https://ahledger.com/glossary" target="_blank" rel="noopener noreferrer">Scan-based methodology ↗</a>. Estimates may confuse cancellations with sales and may be unavailable. Only Forever US PvP Alliance/Horde are used.</p></div>
           <p id="resale-metrics" class="table-note"><strong>Expected profit</strong> = Σ (Alliance minimum ask × quantity × 0.95 − neutral purchase cost), for profitable neutral price levels only. Click ⓘ to inspect quantities, costs, the 5% deduction and totals. Profit is shown in gold with 3 significant figures (k = thousand, M = million, B = billion, T = trillion); sorting uses full values. The model assumes every purchased unit sells at the current Alliance minimum. It excludes deposits, relisting costs and price changes. The fee is modeled as exactly 5%, without rounding each sale's fee. Stock measures listed supply, not completed sales.</p>
           <p id="browser-metrics" class="table-note" hidden>Prices are buyouts per item. Weighted medians use buyout quantities. Stock and offer counts describe listed supply; bid-only offers are counted separately and excluded from buyout prices and stock. Uncheck “Only listed items” to include catalog items with no current listings. Unavailable means a market could not be read; Not listed means it was read successfully with no buyout. Missing item metadata appears as Item #ID / Unknown.</p>
           <p id="catalog-coverage" class="fine"></p>
@@ -178,6 +178,7 @@
       <p id="trade-detail" class="fine"></p>
     </dialog>
 
+    <!-- local setup -->
     <section id="setup-view" role="tabpanel" aria-labelledby="setup-tab" hidden>
     <details id="setup" class="setup">
       <summary>Local setup <span class="summary-hint">Credentials & US PvP feeds</span></summary>
@@ -217,7 +218,8 @@
       </div>
     </details>
     </section>
-    <footer><span>Data from Blizzard Entertainment · Independent local tool</span><span>Forever only · Latest snapshot · No automatic trading</span></footer>
+    <!-- end local setup -->
+    <footer><span>Data from Blizzard Entertainment · Independent tool</span><span>Forever only · Latest snapshot · No automatic trading</span></footer>
   </main>
 </body>
 </html>

@@ -1,3 +1,9 @@
+# Decision records
+
+- For each large coding task, create a short ADR in `docs/`. Keep it to one or two paragraphs. Link to runbooks, research spikes, measurements or external references for supporting detail.
+- Label decisions **Owner decision** or **AI decision**. Attribute owner decisions to explicit requests, confirmations or approvals. Get the owner's approval before changing an owner decision.
+- AI decisions are reversible. Revise them without owner approval when the change satisfies the owner decisions and applicable external constraints. Record significant choices and rationale in the ADR. Keep routine details such as the exact minute of an hourly job in code or runbooks. Identify provider requirements as external constraints.
+
 # Blizzard API constraints
 
 - Apply a **maximum 30-day TTL to raw Blizzard API data** and its copies in caches, logs, exports and backups. The owner additionally authorizes a rolling 90 days of anonymous market-book observations, including price levels, listing quantities and hourly price/stock history. Raw API payloads and player-specific data remain outside this exception. A new fetch does not renew old raw observations.

@@ -29,7 +29,7 @@ class Element {
 }
 
 let uiRun = 0;
-async function withUI({ configured = false, initialSnapshot = null, initialLiquidity = null, initialNeutralReport = null, collection = null } = {}, run) {
+async function withUI({ configured = false, initialSnapshot = null, initialLiquidity = null, initialNeutralReport = null, collection = null, hostedOrigin } = {}, run) {
   const original = Object.fromEntries(['document', 'fetch', 'location', 'setInterval', 'setTimeout', 'clearTimeout'].map((key) => [key, globalThis[key]]));
   const originalNow = Date.now;
   let clock = originalNow(), liveSnapshot = initialSnapshot;
@@ -53,7 +53,7 @@ async function withUI({ configured = false, initialSnapshot = null, initialLiqui
     const th = new Element('th'), button = new Element('button'); button.dataset.browserSort = match[1]; th.append(button); return button;
   });
   const calls = [], intervals = [], timeouts = [];
-  globalThis.document = { getElementById: (id) => elements[id], createElement: (tag) => new Element(tag), createTextNode: (text) => { const node = new Element('text'); node.textContent = text; return node; }, querySelectorAll: (selector) => selector === '.sort' ? buttons : selector === '.resale-sort' ? resaleButtons : selector === '.browser-sort' ? browserButtons : [] };
+  globalThis.document = { documentElement: { dataset: { marketSource: hostedOrigin } }, getElementById: (id) => elements[id], createElement: (tag) => new Element(tag), createTextNode: (text) => { const node = new Element('text'); node.textContent = text; return node; }, querySelectorAll: (selector) => selector === '.sort' ? buttons : selector === '.resale-sort' ? resaleButtons : selector === '.browser-sort' ? browserButtons : [] };
   globalThis.location = { origin: 'http://localhost:4174' };
   globalThis.setInterval = (fn, ms) => { intervals.push({ fn, ms }); return 0; };
   globalThis.setTimeout = (fn, ms) => { const timer = { fn, ms, cancelled: false, unref() {} }; timeouts.push(timer); return timer; };
@@ -61,7 +61,7 @@ async function withUI({ configured = false, initialSnapshot = null, initialLiqui
   globalThis.fetch = async (path, options) => {
     calls.push({ path, options });
     const body = path === '/api/status' ? { csrf: 'local-test', job: { state: 'idle', message: 'Ready' }, configured, collection, clientId: '', settings: { selected: {}, discovery: configured ? {} : null } }
-      : path === '/api/demo' ? { snapshot: demoSnapshot() } : path === '/api/snapshot' ? { snapshot: liveSnapshot } : path === '/api/liquidity' ? { liquidity: initialLiquidity } : path === '/api/neutral-books' ? { report: initialNeutralReport } : { ok: true };
+      : path === '/api/demo' ? { snapshot: demoSnapshot() } : path === '/api/snapshot' || (hostedOrigin && path === hostedOrigin + '/api/snapshot') ? { snapshot: liveSnapshot } : path === '/api/liquidity' ? { liquidity: initialLiquidity } : path === '/api/neutral-books' ? { report: initialNeutralReport } : { ok: true };
     return { ok: true, json: async () => body };
   };
   try {
@@ -82,6 +82,20 @@ async function withUI({ configured = false, initialSnapshot = null, initialLiqui
     for (const [key, value] of Object.entries(original)) globalThis[key] = value;
   }
 }
+
+test('hosted UI uses the snapshot and listed stock without local collection or sales lookup', async () => {
+  const hostedOrigin = 'https://test.example';
+  const initialSnapshot = { ...demoSnapshot(), mode: 'live', publicVersion: 1, retainedAt: new Date().toISOString() };
+  await withUI({ hostedOrigin, initialSnapshot }, async ({ elements, calls }) => {
+    assert.equal(elements['resale-view'].hidden, false);
+    assert.equal(elements['collect'].textContent, 'Refresh');
+    await elements['market-tab'].trigger();
+    assert.match(elements['row-count'].textContent, /listed-stock proxy/);
+    await elements['collect'].trigger();
+    assert.deepEqual(calls.map(({ path }) => path), Array(2).fill(hostedOrigin + '/api/snapshot'));
+    assert.ok(calls.every(({ options }) => !options.method));
+  });
+});
 
 test('setup tab, sample preview, trade defaults, filters, sorts and local credential submission', async () => {
   await withUI({}, async ({ elements, buttons, chooseCategories, calls }) => {

@@ -6,6 +6,9 @@ const HOUR = 3_600_000,
 const SHARDS = 32,
   HOUSES = [110, 113, 116],
   MAX_UPLOAD = 4 * 1024 * 1024;
+const MAX_SNAPSHOT = 8 * 1024 * 1024;
+const SNAPSHOT_KEY = 'latest';
+const PAGES_ORIGIN = 'https://rdgbeatty.github.io';
 const json = (body, status = 200) =>
   Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 const hourNow = () => Math.floor(Date.now() / HOUR);
@@ -222,12 +225,65 @@ export class LiveControl extends DurableObject {
   status() {
     return this.sql.exec('SELECT * FROM checks ORDER BY house').toArray();
   }
+  async fetch(request) {
+    const query = new URL(request.url).searchParams;
+    const startedAt = Number(query.get('startedAt'));
+    const retainedAt = Number(query.get('retainedAt'));
+    const digest = query.get('digest');
+    const expires = Math.floor((retainedAt + 30 * DAY) / 1000);
+    const size = Number(request.headers.get('content-length'));
+    if (!Number.isSafeInteger(startedAt) || startedAt <= Date.now() - HOUR || startedAt > Date.now() + 60000 ||
+        !Number.isSafeInteger(retainedAt) || retainedAt > Date.now() + 60000 ||
+        !(expires > Date.now() / 1000 + 60) || !/^[a-f0-9]{64}$/.test(digest) ||
+        !Number.isSafeInteger(size) || size < 20 || size > MAX_SNAPSHOT)
+      return json({ error: 'Invalid snapshot metadata' }, 400);
+    const body = await request.arrayBuffer();
+    const header = new Uint8Array(body, 0, Math.min(2, body.byteLength));
+    if (body.byteLength !== size || header[0] !== 0x1f || header[1] !== 0x8b)
+      return json({ error: 'Invalid compressed snapshot' }, 422);
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const previous = await this.ctx.storage.get('latestSnapshotStartedAt');
+      if (previous >= startedAt) return json({ reused: true });
+      await this.env.LATEST.put(SNAPSHOT_KEY, body, {
+        expiration: expires,
+        metadata: { expires, etag: '"' + digest + '"' }
+      });
+      await this.ctx.storage.put('latestSnapshotStartedAt', startedAt);
+      return json({ published: true });
+    });
+  }
 }
+
+async function serveSnapshot(request, env) {
+  const { value, metadata } = await env.LATEST.getWithMetadata(SNAPSHOT_KEY, { type: 'stream' });
+  const remaining = (metadata?.expires ?? 0) - Math.ceil(Date.now() / 1000);
+  const headers = new Headers({
+    'access-control-allow-origin': PAGES_ORIGIN,
+    'cache-control': 'no-store'
+  });
+  if (!value || remaining <= 0) {
+    await value?.cancel();
+    headers.set('content-type', 'application/json');
+    return new Response(JSON.stringify({ error: 'No complete market snapshot is available yet.' }), { status: 404, headers });
+  }
+  headers.set('cache-control', 'public, max-age=' + Math.min(60, remaining) + ', must-revalidate');
+  headers.set('etag', metadata.etag);
+  const validators = request.headers.get('if-none-match')?.split(',').map((tag) => tag.trim().replace(/^W\//, ''));
+  if (validators?.some((tag) => tag === '*' || tag === metadata.etag)) {
+    await value.cancel();
+    return new Response(null, { status: 304, headers });
+  }
+  headers.set('content-type', 'application/json; charset=utf-8');
+  headers.set('content-encoding', 'gzip');
+  return new Response(value, { headers, encodeBody: 'manual' });
+}
+
 const dayStub = (env, hour) => env.BOOKS.getByName('forever-us-pvp/' + Math.floor(hour / 24));
 export default {
   async fetch(request, env) {
     const url = new URL(request.url),
       p = url.searchParams;
+    if (request.method === 'GET' && url.pathname === '/api/snapshot') return serveSnapshot(request, env);
     const control = env.CONTROL.getByName('live');
     if (request.method === 'GET' && url.pathname === '/api/status')
       return json({ dataset: 'forever-us-pvp', houses: await control.status() });
@@ -265,6 +321,7 @@ export default {
     const action = url.pathname.slice('/api/collector/'.length);
     if (['take', 'defer', 'status'].includes(action))
       return json(await control.budget(action, Number(p.get('until'))));
+    if (action === 'snapshot') return control.fetch(request);
     const house = Number(p.get('house'));
     if (!HOUSES.includes(house)) return json({ error: 'Unknown house' }, 400);
     if (action === 'upload') return dayStub(env, Math.floor(Number(p.get('source')) / HOUR)).fetch(request);

@@ -28,16 +28,13 @@ export function createClient(origin, token) {
     target.username ||
     target.password ||
     target.origin !== origin ||
-    !(
-      (local && target.protocol === 'http:') ||
-      (target.protocol === 'https:' &&
-        /^gathering-ledger-staging\.[a-z0-9-]+\.workers\.dev$/.test(target.hostname))
-    )
+    !local ||
+    target.protocol !== 'http:'
   ) {
-    throw new Error('Set MARKET_API_URL to the staging workers.dev origin or an HTTP loopback origin.');
+    throw new Error('Set MARKET_API_URL to an HTTP loopback origin.');
   }
   if (!token || token.length < 32)
-    throw new Error('Set MARKET_INGEST_TOKEN to the staging ingestion secret.');
+    throw new Error('Set MARKET_INGEST_TOKEN to the local fixture ingest secret.');
   return async function request(path, body, method = body === undefined ? 'GET' : 'POST') {
     for (let attempt = 0; ; attempt++) {
       let response;

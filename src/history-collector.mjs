@@ -9,13 +9,17 @@ export const SHARDS = 32;
 const DAY = 86_400_000;
 
 // Capture the two feeds as one market. Only the anonymous price ladder leaves this function.
-export async function collectBook(client, house, prior = null) {
+export async function collectBook(client, house, prior = null, { requireSummary = false } = {}) {
   if (!BOOK_HOUSES.includes(house)) throw new Error('Unknown Forever US PvP house.');
   const path = '/data/wow/ruleset/1/auctions/' + house;
   const endings = ['', '/commodities'];
   const docs = [];
   for (const [i, ending] of endings.entries()) {
-    docs.push(await client.get(path + ending, { validators: prior?.documents?.[i], revalidate: true }));
+    docs.push(await client.get(path + ending, {
+      validators: requireSummary ? null : prior?.documents?.[i],
+      revalidate: true,
+      forceBody: requireSummary
+    }));
   }
   const metadata = () =>
     docs.map(({ lastModified, etag, retainedAt, observedAt, freshUntil }) => ({
@@ -25,7 +29,7 @@ export async function collectBook(client, house, prior = null) {
       observedAt,
       freshUntil
     }));
-  if (docs.every((doc) => doc.notModified) && prior) return { unchanged: true, documents: metadata() };
+  if (!requireSummary && docs.every((doc) => doc.notModified) && prior) return { unchanged: true, documents: metadata() };
   for (const [i, doc] of docs.entries()) {
     if (doc.data === null) docs[i] = await client.get(path + endings[i], { forceBody: true });
   }
@@ -60,12 +64,13 @@ export async function collectBook(client, house, prior = null) {
   const version = createHash('sha256')
     .update(JSON.stringify([house, content, documents.map((d) => d.lastModified || d.etag || content)]))
     .digest('hex');
-  if (version === prior?.version)
+  if (!requireSummary && version === prior?.version)
     return {
       unchanged: true,
       documents: documents.map((doc, i) => ({ ...doc, retainedAt: prior.documents[i].retainedAt }))
     };
-  return { house, version, source, documents, records };
+  const summary = house === US_PVP.houses.neutral ? quotes : quotes.map(({ priceLevels, ...quote }) => quote);
+  return { house, version, source, documents, records, summary };
 }
 
 // Store stock and minimum separately to let chart readers skip all the price levels.

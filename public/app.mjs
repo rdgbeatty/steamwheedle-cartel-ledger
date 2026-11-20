@@ -7,6 +7,7 @@ import { neutralResale, sortResaleRows } from '../shared/resale.mjs';
 import { TRADE_DEFAULTS, allianceTrade, dailyEstimate, tradeMatches, sortTradeRows } from '../shared/trade.mjs';
 
 const $ = (id) => document.getElementById(id);
+const hostedOrigin = document.documentElement?.dataset?.marketSource;
 const factions = ['alliance', 'horde', 'neutral'];
 const titles = { alliance: 'Alliance', horde: 'Horde', neutral: 'Neutral' };
 const count = new Intl.NumberFormat('en-US');
@@ -15,7 +16,7 @@ let initialized = false, showDemo = false;
 let collectionForcedOpen = false, collectionUserOpen = false;
 let resaleSort = { key: 'expectedProfit', direction: -1 };
 let browserSort = { key: 'name', direction: 1 };
-const views = ['market', 'resale', 'browser', 'setup'];
+const views = hostedOrigin ? ['market', 'resale', 'browser'] : ['market', 'resale', 'browser', 'setup'];
 const pages = { market: 1, resale: 1, browser: 1 };
 const emptyRows = [];
 const categoryFilters = Object.fromEntries(['market', 'resale', 'browser'].map((view) => {
@@ -33,11 +34,11 @@ function node(tag, text, className) {
 }
 
 async function request(path, body) {
-  const response = await fetch(path, body === undefined ? {} : {
+  const response = await fetch(hostedOrigin ? hostedOrigin + path : path, body === undefined ? {} : {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Local-CSRF': status?.csrf ?? '' }, body: JSON.stringify(body),
   });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'The local request failed.');
+  if (!response.ok) throw new Error(result.error || 'The request failed.');
   return result;
 }
 
@@ -247,7 +248,7 @@ function paginate(view, rows) {
 function tradeFilters() {
   const read = (id, fallback) => $(id).value.trim() === '' ? fallback : Number($(id).value);
   const filters = { filterLowVolume: $('filter-low-volume').checked, minVolume: $('filter-low-volume').checked ? read('min-volume', TRADE_DEFAULTS.minVolume) : 0, minUnitProfit: read('min-unit-profit', 0) * 10_000,
-    minProfitVolume: read('min-profit-volume', 1) * 10_000, volumeMode: $('volume-mode').value,
+    minProfitVolume: read('min-profit-volume', 1) * 10_000, volumeMode: hostedOrigin ? 'stock' : $('volume-mode').value,
     volumeMarkets: $('volume-markets').value, allianceCheaper: $('alliance-cheaper').checked };
   if (![filters.minVolume, filters.minUnitProfit, filters.minProfitVolume].every((value) => Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER)) return null;
   return filters;
@@ -307,9 +308,11 @@ function renderMarket() {
   $('empty').hidden = rows.length > 0;
   if (snapshot) {
     $('empty').replaceChildren(node('h3', 'No trades match these filters.'), node('p', 'Open Trade filters to adjust the volume and profit minimums. Missing daily estimates can use the listed-stock proxy. Both faction prices and a positive spread after fees are required.'));
-  } else $('empty').replaceChildren(node('span', '◇', 'empty-mark'), node('h3', 'Your first market snapshot starts here.'), node('p', 'Open Local setup to connect Blizzard, or preview the table with clearly labeled sample prices.'));
+  } else $('empty').replaceChildren(node('h3', hostedOrigin ? 'Waiting for a market snapshot.' : 'Your first market snapshot starts here.'),
+    node('p', hostedOrigin ? 'Use Refresh to check for published data.' : 'Open Local setup to connect Blizzard, or preview the table with clearly labeled sample prices.'));
   const dailyRows = rows.filter((row) => row.trade.volumeKind === 'daily').length;
-  $('row-count').textContent = snapshot ? `${count.format(rows.length)} trades · ${dailyRows} daily / ${rows.length - dailyRows} stock proxy` : '';
+  $('row-count').textContent = snapshot ? hostedOrigin ? `${count.format(rows.length)} trades · listed-stock proxy`
+    : `${count.format(rows.length)} trades · ${dailyRows} daily / ${rows.length - dailyRows} stock proxy` : '';
   $('load-liquidity').disabled = liquidityLoading || !snapshot || snapshot.mode === 'demo';
   const source = currentLiquidity();
   const details = Object.entries(source?.markets ?? {}).map(([faction, market]) => market.status === 'ok' && market.expiresAt > Date.now()
@@ -335,7 +338,7 @@ function scheduleLiquidityExpiry() {
 }
 
 async function loadLiquidity() {
-  if (liquidityLoading || !snapshot || snapshot.mode === 'demo') return;
+  if (hostedOrigin || liquidityLoading || !snapshot || snapshot.mode === 'demo') return;
   const requestId = ++liquidityRequest, expectedSnapshot = snapshot;
   liquidityLoading = true; liquidityMessage = ''; renderMarket();
   try {
@@ -419,9 +422,9 @@ function renderResale() {
     return tr;
   }));
   $('resale-empty').hidden = rows.length > 0;
-  const title = !snapshot ? 'Collect prices to find opportunities.' : missingDepth ? 'Neutral price depth needs a new collection.'
+  const title = !snapshot ? hostedOrigin ? 'Waiting for a market snapshot.' : 'Collect prices to find opportunities.' : missingDepth ? 'Neutral price depth needs a new collection.'
     : failedHouse ? 'Waiting for both auction houses.' : 'No profitable listings match these filters.';
-  const detail = !snapshot ? 'Open Local setup to connect Blizzard, or preview the sample table.'
+  const detail = !snapshot ? hostedOrigin ? 'Use Refresh to check for published data.' : 'Open Local setup to connect Blizzard, or preview the sample table.'
     : missingDepth || failedHouse ? 'Use Collect now beside Last collection.'
       : filterVolume ? 'Adjust the minimum Alliance stock or uncheck Filter low volume. Listed stock is a supply proxy, not completed sales. Neutral stock is not a minimum.'
         : 'Only neutral buyouts below the Alliance minimum after its 5% sale fee appear here. Items without an Alliance ask or complete neutral price depth are unpriced.';
@@ -453,8 +456,9 @@ function renderBrowser() {
     return tr;
   }));
   $('browser-empty').hidden = rows.length > 0;
-  $('browser-empty').replaceChildren(node('h3', snapshot ? 'No items match these filters.' : 'Collect prices to browse items.'),
-    node('p', snapshot ? 'Adjust search or categories, or uncheck Only listed items to browse the full catalog.' : 'Open Local setup to connect Blizzard, or preview the sample table.'));
+  $('browser-empty').replaceChildren(node('h3', snapshot ? 'No items match these filters.' : hostedOrigin ? 'Waiting for a market snapshot.' : 'Collect prices to browse items.'),
+    node('p', snapshot ? 'Adjust search or categories, or uncheck Only listed items to browse the full catalog.'
+      : hostedOrigin ? 'Use Refresh to check for published data.' : 'Open Local setup to connect Blizzard, or preview the sample table.'));
   for (const button of document.querySelectorAll('.browser-sort')) button.closest('th').setAttribute('aria-sort', button.dataset.browserSort === browserSort.key ? browserSort.direction === 1 ? 'ascending' : 'descending' : 'none');
 }
 
@@ -493,12 +497,30 @@ function imbalanceCell(metrics) {
 
 async function loadSnapshot() {
   if (!showDemo) {
-    const result = await request('/api/snapshot'); snapshot = result.snapshot;
+    const result = await request('/api/snapshot');
+    if (hostedOrigin && result.snapshot?.publicVersion !== 1) throw Error('The market snapshot format is unsupported.');
+    snapshot = result.snapshot;
     if ($('profit-dialog').open) $('profit-dialog').close();
     if ($('trade-dialog').open) $('trade-dialog').close();
     if (result.needsCollection) error('The saved snapshot uses other houses. Collect prices to load the locked US PvP markets.');
     render();
     if (activeView === 'market' && snapshot) void loadLiquidity();
+  }
+}
+
+async function refreshHosted() {
+  error(null);
+  $('collect').disabled = true;
+  $('collect').textContent = 'Refreshing…';
+  try {
+    await loadSnapshot();
+    $('progress').textContent = 'Hourly snapshots are published by the hosted collector.';
+  } catch (failure) {
+    error(failure.message);
+    $('progress').textContent = 'The latest market snapshot could not be loaded.';
+  } finally {
+    $('collect').disabled = false;
+    $('collect').textContent = 'Refresh';
   }
 }
 
@@ -542,32 +564,36 @@ $('collection-summary').addEventListener('click', (event) => { if (collectionFor
 $('collection-summary').addEventListener('keydown', (event) => {
   if (collectionForcedOpen && ['Enter', ' '].includes(event.key)) event.preventDefault();
 });
-$('callback-url').textContent = `${location.origin}/oauth/callback`;
-$('credentials-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const body = { clientId: $('client-id').value, clientSecret: $('client-secret').value };
-  $('client-secret').value = '';
-  showDemo = false;
-  if (await action('/api/setup', body)) selectView('resale');
-});
-$('collect').addEventListener('click', () => {
-  showDemo = false;
-  return action('/api/collect', { refreshCatalog: $('refresh-catalog').checked });
-});
-$('discover').addEventListener('click', () => action('/api/discover'));
-$('cancel').addEventListener('click', () => action('/api/cancel'));
-$('cancel-inspect').addEventListener('click', () => action('/api/cancel'));
-$('neutral-match').addEventListener('input', renderNeutralBooks);
-$('inspect-neutral').addEventListener('click', async () => {
-  $('neutral-check').open = true;
-  await action('/api/inspect-neutral');
-});
-$('forget').addEventListener('click', async () => { await action('/api/forget'); selectView('setup'); });
-$('preview').addEventListener('click', async () => {
-  try { snapshot = (await request('/api/demo')).snapshot; showDemo = true; selectView('resale'); render(); }
-  catch (failure) { error(failure.message); }
-});
-$('show-live').addEventListener('click', async () => { showDemo = false; await loadSnapshot(); });
+if (hostedOrigin) {
+  $('collect').addEventListener('click', refreshHosted);
+} else {
+  $('callback-url').textContent = `${location.origin}/oauth/callback`;
+  $('credentials-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const body = { clientId: $('client-id').value, clientSecret: $('client-secret').value };
+    $('client-secret').value = '';
+    showDemo = false;
+    if (await action('/api/setup', body)) selectView('resale');
+  });
+  $('collect').addEventListener('click', () => {
+    showDemo = false;
+    return action('/api/collect', { refreshCatalog: $('refresh-catalog').checked });
+  });
+  $('discover').addEventListener('click', () => action('/api/discover'));
+  $('cancel').addEventListener('click', () => action('/api/cancel'));
+  $('cancel-inspect').addEventListener('click', () => action('/api/cancel'));
+  $('neutral-match').addEventListener('input', renderNeutralBooks);
+  $('inspect-neutral').addEventListener('click', async () => {
+    $('neutral-check').open = true;
+    await action('/api/inspect-neutral');
+  });
+  $('forget').addEventListener('click', async () => { await action('/api/forget'); selectView('setup'); });
+  $('preview').addEventListener('click', async () => {
+    try { snapshot = (await request('/api/demo')).snapshot; showDemo = true; selectView('resale'); render(); }
+    catch (failure) { error(failure.message); }
+  });
+  $('show-live').addEventListener('click', async () => { showDemo = false; await loadSnapshot(); });
+}
 for (const id of ['search', 'price-basis', 'filter-low-volume', 'alliance-cheaper', 'volume-mode', 'volume-markets', 'min-volume', 'min-unit-profit', 'min-profit-volume']) $(id).addEventListener('input', () => { pages.market = 1; render(); });
 $('reset-trade-filters').addEventListener('click', () => {
   $('filter-low-volume').checked = true; $('alliance-cheaper').checked = true; $('volume-mode').value = 'auto'; $('volume-markets').value = 'both';
@@ -596,8 +622,18 @@ for (const button of document.querySelectorAll('.browser-sort')) button.addEvent
   pages.browser = 1; renderBrowser();
 });
 selectView('resale');
-await poll();
-await loadSnapshot().catch((failure) => error(failure.message));
-setInterval(poll, 2000);
-setInterval(() => { if (status) updateCollectAvailability(); }, 1000);
-setInterval(() => { if (snapshot) render(); if (neutralReport) renderNeutralBooks(); }, 60_000);
+if (hostedOrigin) {
+  await refreshHosted();
+} else {
+  await poll();
+  await loadSnapshot().catch((failure) => error(failure.message));
+  setInterval(poll, 2000);
+  setInterval(() => { if (status) updateCollectAvailability(); }, 1000);
+}
+setInterval(() => {
+  if (snapshot) {
+    if (hostedOrigin && Date.parse(snapshot.retainedAt) <= Date.now() - 30 * 86400000) snapshot = null;
+    render();
+  }
+  if (neutralReport) renderNeutralBooks();
+}, 60_000);

@@ -9,6 +9,6 @@
   "assets": {"directory":"./site","run_worker_first":["/api/*"]},
   "durable_objects": {"bindings":[{"name":"BOOKS","class_name":"BookDay"},{"name":"CONTROL","class_name":"LiveControl"}]},
   "migrations":[{"tag":"live-v1","new_sqlite_classes":["BookDay","LiveControl"]}],
-  "kv_namespaces":[{"binding":"EXPIRY"}],
+  "kv_namespaces":[{"binding":"EXPIRY"},{"binding":"LATEST"}],
   "observability":{"enabled":false}
 }
