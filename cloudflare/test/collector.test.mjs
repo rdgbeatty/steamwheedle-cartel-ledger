@@ -61,10 +61,11 @@ test('Workers replay streams books, commits history and preserves the last good 
     bundle: true, format: 'esm', platform: 'browser', external: ['node:*', 'cloudflare:*'], write: false
   });
   const ingest = randomBytes(32).toString('hex');
-  const source = Math.floor((Date.now() - HOUR) / HOUR) * HOUR + 120_000;
+  let source = Math.floor((Date.now() - 2 * HOUR) / HOUR) * HOUR + 120_000;
   const totals = { 110: Number(process.env.REPLAY_AUCTIONS ?? 20_000), 113: 6_000, 116: 2_500 };
   let invalidate = false, conditional = 0, tokens = 0;
   const mf = new Miniflare(convertV4MiniflareOptions({
+    unsafeTriggerHandlers: true,
     name: 'collector-replay', compatibilityDate: '2026-11-01', compatibilityFlags: ['nodejs_compat'], modules: true, script: bundle.text,
     durableObjects: {
       BOOKS: { className: 'BookDay', useSQLite: true },
@@ -89,14 +90,15 @@ test('Workers replay streams books, commits history and preserves the last good 
       const house = Number(id);
       const headers = {
         'last-modified': new Date(source).toUTCString(),
-        'cache-control': 'no-cache',
-        etag: '"' + id + (commodities ?? '') + '"',
+        'cache-control': 'public, max-age=86400',
+        etag: '"' + id + (commodities ?? '') + '-' + source + '"',
         'content-type': 'application/json'
       };
       if (request.headers.has('if-none-match')) {
         conditional++;
-        assert.equal(request.headers.get('if-none-match'), headers.etag);
-        return new Response(null, { status: 304, headers });
+        assert.equal(request.headers.get('cache-control'), 'max-age=0');
+        if (request.headers.get('if-none-match') === headers.etag)
+          return new Response(null, { status: 304, headers });
       }
       if (invalidate && !commodities && house === 110)
         return new Response('{"id":110,"auctions":{}}', { headers });
@@ -144,12 +146,34 @@ test('Workers replay streams books, commits history and preserves the last good 
   assert.equal((await chart.json()).points.length, 3);
   const order = await (await fetch('/api/book?house=116&item=2&from=' + hour + '&to=' + hour)).json();
   assert.deepEqual(order.points[0].book, [2, 0, [[117.5, 2, 1, 235]]]);
-  assert.equal((await (await run()).json()).status, 'unchanged');
+  assert.deepEqual(await (await run()).json(), { status: 'unchanged', requests: 0 });
+  assert.equal(conditional, 0);
+  assert.ok((await (await fetch('/api/status')).json()).houses.every(({ status }) => status === 'cached'));
+
+  const tick = async () => {
+    const cron = new URLSearchParams({ cron: '37 * * * *', format: 'json' });
+    const response = await fetch('/cdn-cgi/local/scheduled?' + cron);
+    assert.deepEqual(await response.json(), { outcome: 'ok', noRetry: false });
+  };
+  await tick();
   assert.equal(conditional, 6);
+  assert.equal((await fetch('/api/snapshot', { headers: { 'if-none-match': published } })).status, 304);
+
+  // Blizzard publishes another hour while all six cached feed validators are still fresh.
+  source += HOUR;
+  await tick();
+  assert.equal(conditional, 12);
+  const refreshed = await fetch('/api/snapshot');
+  const refreshedTag = refreshed.headers.get('etag');
+  assert.notEqual(refreshedTag, published);
+  assert.equal((await refreshed.json()).snapshot.houses.alliance.observedAt, new Date(source).toISOString());
+  const nextHour = hour + 1;
+  const hourly = await (await fetch('/api/history?item=2&from=' + hour + '&to=' + nextHour)).json();
+  assert.deepEqual(hourly.points.map((point) => point.hour), [hour, hour, hour, nextHour, nextHour, nextHour]);
 
   invalidate = true;
   const failed = await run('?force=1');
   assert.equal(failed.status, 502);
   assert.deepEqual((await failed.json()).failures.map(({ house }) => house), [110]);
-  assert.equal((await fetch('/api/snapshot', { headers: { 'if-none-match': published } })).status, 304);
+  assert.equal((await fetch('/api/snapshot', { headers: { 'if-none-match': refreshedTag } })).status, 304);
 });

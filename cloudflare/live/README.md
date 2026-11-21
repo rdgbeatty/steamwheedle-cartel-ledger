@@ -1,6 +1,6 @@
 # Live US PvP history
 
-A Cloudflare Cron Trigger runs the `MarketCollector` Durable Object at **minute 37 of each UTC hour**. It checks both Forever feeds for houses 110, 113 and 116. Check source publication time separately from the last attempted pull. Skipped or failed hours leave gaps. [Collector decision](../../docs/08-cloudflare-collector.md)
+A Cloudflare Cron Trigger runs the `MarketCollector` Durable Object at **minute 37 of each UTC hour**. It revalidates both Forever feeds for houses 110, 113 and 116 on each tick using the saved ETag or Last-Modified. An on-demand run can reuse still-fresh feed metadata. A 304 preserves the source time and creates no new history point. Check source publication time separately from the last attempted pull. Skipped or failed hours leave gaps. [Collector decision](../../docs/08-cloudflare-collector.md)
 
 The collector streams raw listings into compact arrays for one house at a time. It deduplicates by auction ID, separates item variants, and saves an anonymous price ladder with units, offer count and exact total buyout at each price. Bid-only auctions contribute to the total listed units and bid-only count. Historical records contain no individual listing IDs, player names, bids or time-left field. The chart uses minimum unit buyout in copper and buyout stock. Each UTC source hour has at most one book per house. A later publication within that hour replaces the earlier one. The oldest contributing source timestamp determines the slot and expiry.
 

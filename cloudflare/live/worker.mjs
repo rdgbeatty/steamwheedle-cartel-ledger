@@ -319,7 +319,7 @@ const dayStub = (env, hour) => env.BOOKS.getByName('forever-us-pvp/' + Math.floo
 const collector = (env) => env.COLLECTOR.getByName('forever-us-pvp');
 export default {
   async scheduled(_event, env) {
-    const result = await collector(env).run();
+    const result = await collector(env).run({ revalidate: true });
     if (['incomplete', 'failed', 'credentials-required'].includes(result.status))
       throw Error('Market collection: ' + JSON.stringify(result));
   },
@@ -370,7 +370,7 @@ export default {
     if (['take', 'defer', 'status'].includes(action))
       return json(await control.budget(action, Number(p.get('until'))));
     if (action === 'run') {
-      const result = await collector(env).run(p.get('force') === '1');
+      const result = await collector(env).run({ force: p.get('force') === '1' });
       return json(result, ['incomplete', 'failed', 'credentials-required'].includes(result.status) ? 502 : 200);
     }
     if (action === 'snapshot') return control.fetch(request);

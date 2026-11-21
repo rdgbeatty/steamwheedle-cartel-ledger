@@ -13,17 +13,17 @@ const CATALOG_KEY = 'collector-catalog-v1';
 export const MAX_SNAPSHOT = 8 * 1024 * 1024;
 
 export class MarketCollector extends DurableObject {
-  async run(force = false) {
+  async run({ force = false, revalidate = false } = {}) {
     if (this.running) return { status: 'busy' };
     this.running = true;
     try {
-      return await this.collect(force);
+      return await this.collect({ force, revalidate });
     } finally {
       this.running = false;
     }
   }
 
-  async collect(force) {
+  async collect({ force, revalidate }) {
     const startedAt = Date.now();
     const control = this.env.CONTROL.getByName('live');
     const previous = await this.ctx.storage.get('published');
@@ -50,7 +50,7 @@ export class MarketCollector extends DurableObject {
         const checked = Date.now();
         try {
           const prior = await this.env.EXPIRY.get('prior-' + house, 'json');
-          const result = !force && prior?.documents?.every((doc) => doc.freshUntil > checked)
+          const result = !force && !revalidate && prior?.documents?.every((doc) => doc.freshUntil > checked)
             ? { ...prior, unchanged: true, cached: true }
             : await captureHouse(client, house, prior, { force });
           if (!Number.isSafeInteger(result.source) || result.source <= Date.now() - RETENTION)
