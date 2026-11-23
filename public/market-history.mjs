@@ -113,6 +113,13 @@ export function historyDialog(origin) {
   const get = (id) => document.getElementById('history-' + id);
   const dialog = get('dialog'), canvas = get('chart'), slider = get('hour'), range = get('range');
   let opening, run, plot;
+  let pressedBackdrop = false;
+
+  function isOnBackdrop({ target, clientX, clientY }) {
+    if (target !== dialog) return false;
+    const { left, right, top, bottom } = dialog.getBoundingClientRect();
+    return clientX < left || clientX > right || clientY < top || clientY > bottom;
+  }
 
   function inspect(hour) {
     run.selectedHour = hour;
@@ -220,6 +227,11 @@ export function historyDialog(origin) {
   }).observe(canvas);
   get('retry').addEventListener('click', () => load(run.chunks.filter((chunk) => chunk.state === 'failed')));
   get('close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('pointerdown', (event) => { pressedBackdrop = isOnBackdrop(event); });
+  dialog.addEventListener('click', (event) => {
+    if (pressedBackdrop && isOnBackdrop(event)) dialog.close();
+    pressedBackdrop = false;
+  });
   dialog.addEventListener('close', () => {
     if (dialog.open) return;
     run?.controller.abort();

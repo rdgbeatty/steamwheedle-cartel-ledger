@@ -578,9 +578,21 @@ test('opening a hosted item requests its variant on demand and preserves availab
     assert.equal(attempts, 7);
     assert.equal(elements['history-retry'].hidden, true);
     assert.equal(calls.filter(({ path }) => path === hostedOrigin + '/api/snapshot').length, 1);
-    await elements['history-close'].trigger('click');
-    await elements['history-dialog'].trigger('close');
-    assert.equal(elements['history-dialog'].open, false);
+
+    const dialog = elements['history-dialog'];
+    dialog.getBoundingClientRect = () => ({ left: 100, right: 500, top: 100, bottom: 400 });
+    const padding = { target: dialog, clientX: 105, clientY: 105 };
+    const backdrop = { target: dialog, clientX: 80, clientY: 100 };
+    await dialog.trigger('pointerdown', padding);
+    await dialog.trigger('click', padding);
+    assert.equal(dialog.open, true);
+    await dialog.trigger('pointerdown', padding);
+    await dialog.trigger('click', backdrop);
+    assert.equal(dialog.open, true);
+    await dialog.trigger('pointerdown', backdrop);
+    await dialog.trigger('click', backdrop);
+    assert.equal(dialog.open, false);
+    await dialog.trigger('close');
     assert.equal(link.focused, true);
   });
 });
