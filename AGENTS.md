@@ -4,6 +4,13 @@
 - Label decisions **Owner decision** or **AI decision**. Attribute owner decisions to explicit requests, confirmations or approvals. Get the owner's approval before changing an owner decision.
 - AI decisions are reversible. Revise them without owner approval when the change satisfies the owner decisions and applicable external constraints. Record significant choices and rationale in the ADR. Keep routine details such as the exact minute of an hourly job in code or runbooks. Identify provider requirements as external constraints.
 
+# Git commits and pushes
+
+- Commit verified changes before handing work back. Keep commits focused on the request and preserve unrelated working-tree changes.
+- Push verified low-risk changes automatically to the agreed branch. Routine copy edits, visual tweaks, and small tested fixes are examples.
+- For higher-risk changes such as production infrastructure, authentication, or data migrations, commit the verified changes and ask the owner before pushing unless they already approved the push.
+- If a push fails, notify the owner promptly. Identify the local commits awaiting push, explain the blocker, and ask how to proceed. Keep the pending push visible until it is resolved.
+
 # Hosting and billing constraint
 
 - The owner requires zero-cost hosting across the project. Use services with provider-enforced limits that reject, skip, or pause work before any charges accrue, including under runaway retries, traffic, or storage growth. Keep Cloudflare on Workers Free and verify the billing behavior of each product, including storage, logs, and backups. Treat alerts and application-side caps as supplementary controls.
