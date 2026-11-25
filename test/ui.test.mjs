@@ -191,15 +191,16 @@ test('configured users land on the table; collection details stay open after fou
   });
 });
 
-test('neutral resale shows only profit, sorts by its full total and opens the price-level math', async () => {
+test('neutral resale shows profitable opportunities, sorts by profit or margin and opens the price-level math', async () => {
   await withUI({ configured: true, initialSnapshot: demoSnapshot() }, async ({ elements, resaleButtons, chooseCategories, refreshSnapshot }) => {
     assert.equal(elements['resale-view'].hidden, false);
     assert.equal(elements['collection-toolbar'].hidden, false);
     assert.equal(elements['resale-rows'].children.length, 3);
     const iron = elements['resale-rows'].children[0];
-    assert.equal(iron.children.length, 7);
+    assert.equal(iron.children.length, 8);
     assert.match(iron.textContent, /Iron Ore/);
     assert.match(iron.children[6].textContent, /2\.78 gⓘ/);
+    assert.equal(iron.children[7].textContent, '12%');
     assert.match(iron.children[3].textContent, /61030 offers/);
     assert.match(iron.children[5].textContent, /61030 offers/); // Includes loss-making stock.
     assert.equal(elements['resale-rows'].textContent.includes('Tin Ore'), false);
@@ -221,12 +222,19 @@ test('neutral resale shows only profit, sorts by its full total and opens the pr
     assert.equal(elements['resale-rows'].children.length, 1);
     assert.match(elements['resale-rows'].textContent, /Copper Ore/);
     elements['resale-search'].value = ''; await elements['resale-search'].trigger('input');
-    await resaleButtons.find((button) => button.dataset.resaleSort === 'expectedProfit').trigger();
+    const profitSort = resaleButtons.find((button) => button.dataset.resaleSort === 'expectedProfit');
+    await profitSort.trigger();
     assert.match(elements['resale-rows'].children.at(-1).textContent, /Iron Ore/);
-    assert.equal(resaleButtons.at(-1).closest('th').attributes['aria-sort'], 'ascending');
+    assert.equal(profitSort.closest('th').attributes['aria-sort'], 'ascending');
     // The other page's median control cannot change the resale target or profit.
     elements['price-basis'].value = 'medianBuyout'; await elements['price-basis'].trigger('input');
     assert.match(elements['resale-rows'].children.at(-1).children[6].textContent, /2\.78 g/);
+
+    const marginSort = resaleButtons.find((button) => button.dataset.resaleSort === 'expectedMargin');
+    await marginSort.trigger();
+    assert.equal(marginSort.closest('th').attributes['aria-sort'], 'descending');
+    assert.match(elements['resale-rows'].children[0].textContent, /Peacebloom/);
+    assert.equal(elements['resale-rows'].children[0].children[7].textContent, '29.5%');
 
     const current = elements['resale-rows'].children[0];
     await current.children[6].children[1].trigger();

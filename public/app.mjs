@@ -13,6 +13,7 @@ const openHistory = historyDialog(hostedOrigin ?? '');
 const factions = ['alliance', 'horde', 'neutral'];
 const titles = { alliance: 'Alliance', horde: 'Horde', neutral: 'Neutral' };
 const count = new Intl.NumberFormat('en-US');
+const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
 let status, snapshot = null, sort = { key: 'profitVolume', direction: -1 }, lastJob = '', polling = false;
 let initialized = false, showDemo = false;
 let collectionForcedOpen = false, collectionUserOpen = false;
@@ -425,7 +426,9 @@ function renderResale() {
     details.title = `Show math: ${count.format(row.resale.profitableUnits)} profitable units across ${count.format(row.resale.profitableListings)} offers`;
     details.addEventListener('click', () => showProfit(row));
     profit.append(details);
-    tr.append(name, categoryCell, alliance, stockCell(row.quotes.alliance), neutral, stockCell(row.quotes.neutral), profit);
+    const margin = row.resale.expectedMargin;
+    const marginCell = node('td', margin < 0.001 ? '<0.1%' : percent.format(margin), 'numeric');
+    tr.append(name, categoryCell, alliance, stockCell(row.quotes.alliance), neutral, stockCell(row.quotes.neutral), profit, marginCell);
     return tr;
   }));
   $('resale-empty').hidden = rows.length > 0;

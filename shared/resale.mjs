@@ -8,7 +8,7 @@ const safeAmount = (value) => Number.isFinite(value) && Math.abs(value) <= Numbe
 // Fees are modeled as a proportional 5%, without rounding individual sale fees.
 export function neutralResale(row) {
   const alliance = row.quotes?.alliance, neutral = row.quotes?.neutral;
-  const unavailable = (reason) => ({ status: 'unavailable', reason, expectedProfit: null, levels: [] });
+  const unavailable = (reason) => ({ status: 'unavailable', reason, expectedProfit: null, expectedMargin: null, levels: [] });
   if (!alliance || !neutral) return unavailable('An auction house is unavailable.');
   if (!Array.isArray(neutral.priceLevels)) return unavailable('Collect again to load neutral price levels.');
   if (!positive(alliance.minBuyout)) return unavailable('No Alliance buyout ask is available as a sale target.');
@@ -16,7 +16,7 @@ export function neutralResale(row) {
 
   const result = { status: 'unprofitable', allianceAsk: alliance.minBuyout, neutralAsk: neutral.minBuyout,
     profitableUnits: 0, profitableListings: 0, purchaseCost: 0, grossRevenue: 0,
-    saleFee: 0, netRevenue: 0, expectedProfit: 0, levels: [] };
+    saleFee: 0, netRevenue: 0, expectedProfit: 0, expectedMargin: null, levels: [] };
   let units = 0, listings = 0;
   for (const level of [...neutral.priceLevels].sort((a, b) => a.unitPrice - b.unitPrice)) {
     const { unitPrice, quantity, listingCount, totalBuyout } = level;
@@ -40,7 +40,10 @@ export function neutralResale(row) {
   }
   if (!whole(units) || !whole(listings) || units !== neutral.buyoutUnits || listings !== neutral.buyoutAuctions) return unavailable('Neutral price depth does not cover all buyout listings.');
   if (![result.purchaseCost, result.grossRevenue, result.saleFee, result.netRevenue, result.expectedProfit].every(safeAmount)) return unavailable('Profit exceeds safe numeric precision.');
-  if (result.expectedProfit > 0) result.status = 'profitable';
+  if (result.expectedProfit > 0) {
+    result.status = 'profitable';
+    result.expectedMargin = result.expectedProfit / result.grossRevenue;
+  }
   return result;
 }
 

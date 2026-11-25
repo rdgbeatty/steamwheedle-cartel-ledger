@@ -30,6 +30,7 @@ test('sum every profitable neutral level after the Alliance fee; exclude break-e
   assert.equal(plan.saleFee, 250);
   assert.equal(plan.netRevenue, 4750);
   assert.equal(plan.expectedProfit, 1050);
+  assert.equal(plan.expectedMargin, 0.21);
   assert.deepEqual(plan.levels.map((level) => [level.unitPrice, level.expectedProfit]), [[500, 900], [900, 150]]);
   assert.deepEqual(row.quotes.neutral.priceLevels, before.quotes.neutral.priceLevels.reverse()); // Input is not sorted in place.
 });
@@ -74,6 +75,7 @@ test('missing or partial price depth and unknown sale targets do not invent prof
     const plan = neutralResale(row);
     assert.equal(plan.status, 'unavailable');
     assert.equal(plan.expectedProfit, null);
+    assert.equal(plan.expectedMargin, null);
   }
 });
 

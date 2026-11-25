@@ -39,7 +39,7 @@ Click an item name in any market table to see its price history. Solid lines joi
 
 This page lists only neutral buyout opportunities with positive expected profit when every purchased unit sells at the **current Alliance minimum unit ask**, less a **5% Alliance sale fee**. Its target always uses the minimum, independently of the comparison page's minimum/median setting.
 
-Columns show item/category, Alliance and neutral minimum unit asks, both houses' buyout stock/offer counts, and **Expected profit**, ranked highest first. Stock includes all buyout listings, including unprofitable neutral ones; it measures supply rather than actual sales. Profit displays in gold with three significant figures and k/M/B/T suffixes. Sorting uses the full value.
+Columns show item/category, Alliance and neutral minimum unit asks, both houses' buyout stock/offer counts, **Expected profit**, and **Expected margin**. The default sort ranks total profit highest first. Expected margin divides expected profit after fees by gross Alliance revenue for the profitable listings. Stock includes all buyout listings and measures available supply. Profit displays in gold with three significant figures and k/M/B/T suffixes. Sorting uses the full value.
 
 **Filter low volume** is an optional checkbox above the table, initially off. When enabled it requires at least **1,000 Alliance buyout units**, with an editable minimum. It checks the destination market's stock as a supply proxy, not actual units sold/day. It does not require a minimum neutral stock: one cheap neutral listing can still be a valid purchase. The filter hides opportunities without changing their expected-profit math, and does not issue API requests. Unknown Alliance stock is excluded while the filter is on.
 
