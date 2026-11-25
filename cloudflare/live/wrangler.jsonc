@@ -10,6 +10,10 @@
   "durable_objects": {"bindings":[{"name":"BOOKS","class_name":"BookDay"},{"name":"CONTROL","class_name":"LiveControl"},{"name":"COLLECTOR","class_name":"MarketCollector"}]},
   "migrations":[{"tag":"live-v1","new_sqlite_classes":["BookDay","LiveControl"]},{"tag":"collector-v1","new_sqlite_classes":["MarketCollector"]}],
   "kv_namespaces":[{"binding":"EXPIRY"},{"binding":"LATEST"}],
-  "triggers": {"crons": ["37 * * * *"]},
-  "observability":{"enabled":false}
+  "triggers": {"crons": ["30,45 * * * *"]},
+  "observability": {
+    "enabled": true,
+    "logs": {"enabled": true, "invocation_logs": true},
+    "traces": {"enabled": false}
+  }
 }

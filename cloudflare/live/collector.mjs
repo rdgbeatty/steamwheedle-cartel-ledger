@@ -10,14 +10,32 @@ import { bookParts, captureHouse, SHARDS, unpackBlock } from './stream-book.mjs'
 
 const HOUR = 3_600_000, DAY = 24 * HOUR, RETENTION = 30 * DAY;
 const CATALOG_KEY = 'collector-catalog-v1';
+const SCHEDULE_KEY = 'scheduled-collection';
 export const MAX_SNAPSHOT = 8 * 1024 * 1024;
 
 export class MarketCollector extends DurableObject {
-  async run({ force = false, revalidate = false } = {}) {
+  async run({ force = false, scheduledTime } = {}) {
     if (this.running) return { status: 'busy' };
     this.running = true;
     try {
-      return await this.collect({ force, revalidate });
+      if (scheduledTime === undefined) return await this.collect({ force, revalidate: false });
+
+      const hour = Math.floor(scheduledTime / HOUR);
+      const retry = new Date(scheduledTime).getUTCMinutes() === 45;
+      const previous = await this.ctx.storage.get(SCHEDULE_KEY);
+      if (previous?.hour > hour) return { status: 'skipped' };
+      if (previous?.hour === hour) {
+        if (!retry || previous.retry || ['published', 'unchanged', 'credentials-required'].includes(previous.status))
+          return { status: 'skipped' };
+        if (previous.retryAt > Date.now()) return { status: 'deferred', retryAt: previous.retryAt };
+      }
+
+      // Persist the attempt before collecting so an interrupted run still has a retry limit.
+      const attempt = { hour, retry, status: 'started' };
+      await this.ctx.storage.put(SCHEDULE_KEY, attempt);
+      const result = await this.collect({ force, revalidate: true });
+      await this.ctx.storage.put(SCHEDULE_KEY, { ...attempt, status: result.status, retryAt: result.retryAt ?? 0 });
+      return result;
     } finally {
       this.running = false;
     }

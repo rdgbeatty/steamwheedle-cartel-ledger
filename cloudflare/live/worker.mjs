@@ -318,8 +318,8 @@ async function serveSnapshot(request, env) {
 const dayStub = (env, hour) => env.BOOKS.getByName('forever-us-pvp/' + Math.floor(hour / 24));
 const collector = (env) => env.COLLECTOR.getByName('forever-us-pvp');
 export default {
-  async scheduled(_event, env) {
-    const result = await collector(env).run({ revalidate: true });
+  async scheduled(event, env) {
+    const result = await collector(env).run({ scheduledTime: event.scheduledTime });
     if (['incomplete', 'failed', 'credentials-required'].includes(result.status))
       throw Error('Market collection: ' + JSON.stringify(result));
   },

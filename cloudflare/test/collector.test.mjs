@@ -61,7 +61,8 @@ test('Workers replay streams books, commits history and preserves the last good 
     bundle: true, format: 'esm', platform: 'browser', external: ['node:*', 'cloudflare:*'], write: false
   });
   const ingest = randomBytes(32).toString('hex');
-  let source = Math.floor((Date.now() - 2 * HOUR) / HOUR) * HOUR + 120_000;
+  const firstHour = Math.floor((Date.now() - 5 * HOUR) / HOUR) * HOUR;
+  let source = firstHour + 120_000;
   const totals = { 110: Number(process.env.REPLAY_AUCTIONS ?? 20_000), 113: 6_000, 116: 2_500 };
   let invalidate = false, conditional = 0, tokens = 0;
   const mf = new Miniflare(convertV4MiniflareOptions({
@@ -150,18 +151,24 @@ test('Workers replay streams books, commits history and preserves the last good 
   assert.equal(conditional, 0);
   assert.ok((await (await fetch('/api/status')).json()).houses.every(({ status }) => status === 'cached'));
 
-  const tick = async () => {
-    const cron = new URLSearchParams({ cron: '37 * * * *', format: 'json' });
+  const tick = async (hourOffset, minute, outcome = 'ok') => {
+    const cron = new URLSearchParams({
+      cron: minute === 37 ? '37 * * * *' : '30,45 * * * *',
+      time: firstHour + hourOffset * HOUR + minute * 60_000,
+      format: 'json'
+    });
     const response = await fetch('/cdn-cgi/local/scheduled?' + cron);
-    assert.deepEqual(await response.json(), { outcome: 'ok', noRetry: false });
+    assert.deepEqual(await response.json(), { outcome, noRetry: false });
   };
-  await tick();
+  await tick(0, 37);
   assert.equal(conditional, 6);
   assert.equal((await fetch('/api/snapshot', { headers: { 'if-none-match': published } })).status, 304);
+  await tick(0, 45);
+  assert.equal(tokens, 2);
 
-  // Blizzard publishes another hour while all six cached feed validators are still fresh.
+  // The new :30 schedule can collect 53 minutes after the last :37 tick.
   source += HOUR;
-  await tick();
+  await tick(1, 30);
   assert.equal(conditional, 12);
   const refreshed = await fetch('/api/snapshot');
   const refreshedTag = refreshed.headers.get('etag');
@@ -172,8 +179,35 @@ test('Workers replay streams books, commits history and preserves the last good 
   assert.deepEqual(hourly.points.map((point) => point.hour), [hour, hour, hour, nextHour, nextHour, nextHour]);
 
   invalidate = true;
+  await tick(1, 45);
+  assert.equal(tokens, 3);
   const failed = await run('?force=1');
   assert.equal(failed.status, 502);
   assert.deepEqual((await failed.json()).failures.map(({ house }) => house), [110]);
   assert.equal((await fetch('/api/snapshot', { headers: { 'if-none-match': refreshedTag } })).status, 304);
+
+  source += HOUR;
+  await tick(2, 30, 'exception');
+  assert.equal((await fetch('/api/snapshot', { headers: { 'if-none-match': refreshedTag } })).status, 304);
+  invalidate = false;
+  await tick(2, 45);
+  const retried = await (await fetch('/api/snapshot')).json();
+  assert.equal(retried.snapshot.houses.alliance.observedAt, new Date(source).toISOString());
+  assert.equal(tokens, 6);
+  await tick(2, 45);
+  assert.equal(tokens, 6);
+
+  // A successful :45 retry leaves the next :30 tick eligible 45 minutes later.
+  source += HOUR;
+  await tick(3, 30);
+  const resumed = await (await fetch('/api/snapshot')).json();
+  assert.equal(resumed.snapshot.houses.alliance.observedAt, new Date(source).toISOString());
+  assert.equal(tokens, 7);
+
+  // The recovery trigger also works if the primary never reached the collector.
+  source += HOUR;
+  await tick(4, 45);
+  const recovered = await (await fetch('/api/snapshot')).json();
+  assert.equal(recovered.snapshot.houses.alliance.observedAt, new Date(source).toISOString());
+  assert.equal(tokens, 8);
 });

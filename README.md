@@ -1,6 +1,6 @@
 # Steamwheedle Cartel Ledger
 
-The live US PvP history chart covers Alliance 110, Horde 113 and Neutral 116. Select an item name in the local tables to open its chart, including its equipment variant. GitHub Actions schedules collection hourly. Each house has up to one observation per source hour. The chart shows minimum unit buyout and listed buyout quantity, with gaps where observations are missing. The archive retains anonymous price levels for up to 90 days. [Live viewer](https://gathering-ledger.gathering-ledger.workers.dev/), [collector operations](cloudflare/live/README.md)
+The live US PvP history chart covers Alliance 110, Horde 113 and Neutral 116. Select an item name in the local tables to open its chart, including its equipment variant. Cloudflare runs hourly collection and checks for recovery 15 minutes later. Each house has up to one observation per source hour. The chart shows minimum unit buyout and listed buyout quantity, with gaps where observations are missing. The archive retains anonymous price levels for up to 90 days. [Live viewer](https://gathering-ledger.gathering-ledger.workers.dev/), [collector operations](cloudflare/live/README.md)
 
 The local collector, trading tables and data browser cover **all Forever items** in those three US PvP houses. The local app runs on **Node 18.18+** without installing dependencies. [Market mapping](docs/02-us-pvp-markets.md)
 
