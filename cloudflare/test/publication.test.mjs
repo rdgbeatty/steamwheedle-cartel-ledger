@@ -72,7 +72,7 @@ test(
     }
     await start();
     const req = createClient(origin, token);
-    assert.match(await (await fetch(origin)).text(), /Synthetic staging data/);
+    assert.match(await (await fetch(origin)).text(), /Synthetic fixture data/);
     const chart = () => req('/api/history?item=3820&days=90');
     assert.equal((await chart()).points.length, 0);
     assert.equal((await fetch(origin + '/api/ingest/begin', { method: 'POST', body: '{}' })).status, 401);

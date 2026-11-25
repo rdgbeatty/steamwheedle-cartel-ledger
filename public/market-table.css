@@ -120,7 +120,7 @@ footer { margin-top: 18px; padding-top: 12px; }
 @media (max-width: 600px) {
   main { padding: 12px; }
   .app-header { align-items: stretch; flex-direction: column; gap: 10px; }
-  .app-title { align-items: baseline; gap: 10px; }
+  .app-title { align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
   .header-actions { align-items: stretch; flex-direction: column-reverse; gap: 6px; margin-left: 0; }
   .header-actions .badge { align-self: flex-start; }
   .header-actions .badge { padding: 4px 6px; font-size: 8px; }
